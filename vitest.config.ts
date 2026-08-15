@@ -7,6 +7,8 @@ export default defineConfig({
     exclude: [
       "**/node_modules/**",
       "**/dist/**",
+      "**/.next/**",
+      "**/.open-next/**",
       "**/src/server/processing/pipeline-acceptance.test.ts",
     ],
     alias: {
