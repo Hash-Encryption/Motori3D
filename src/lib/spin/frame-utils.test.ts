@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPreloadOrder,
   calculateFrameTimestamps,
+  DEFAULT_FRAME_COUNT,
   frameFilename,
   isSupportedFrameCount,
   wrapFrameIndex,
@@ -29,6 +30,7 @@ describe("frame index and filename utilities", () => {
     expect(wrapFrameIndex(72, 72)).toBe(0);
     expect(wrapFrameIndex(-1, 72)).toBe(71);
     expect(wrapFrameIndex(145, 72)).toBe(1);
+    expect(wrapFrameIndex(-73, 72)).toBe(71);
   });
 
   it("creates filenames that remain lexically ordered", () => {
@@ -38,7 +40,8 @@ describe("frame index and filename utilities", () => {
     expect([...filenames].sort()).toEqual(filenames);
   });
 
-  it("accepts only supported target counts", () => {
+  it("accepts only supported target counts and defines 48 as default", () => {
+    expect(DEFAULT_FRAME_COUNT).toBe(48);
     expect(isSupportedFrameCount(36)).toBe(true);
     expect(isSupportedFrameCount(48)).toBe(true);
     expect(isSupportedFrameCount(72)).toBe(true);
@@ -47,5 +50,10 @@ describe("frame index and filename utilities", () => {
 
   it("preloads the front frame and nearest angles in both directions", () => {
     expect(buildPreloadOrder(8)).toEqual([0, 1, 7, 2, 6, 3, 5, 4]);
+  });
+
+  it("supports distance-prioritized preloading relative to an active start frame", () => {
+    expect(buildPreloadOrder(8, 3)).toEqual([3, 4, 2, 5, 1, 6, 0, 7]);
+    expect(buildPreloadOrder(6, 5)).toEqual([5, 0, 4, 1, 3, 2]);
   });
 });

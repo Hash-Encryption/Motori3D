@@ -1,5 +1,6 @@
 export const SUPPORTED_FRAME_COUNTS = [36, 48, 72] as const;
 export type SupportedFrameCount = (typeof SUPPORTED_FRAME_COUNTS)[number];
+export const DEFAULT_FRAME_COUNT: SupportedFrameCount = 48;
 
 export function isSupportedFrameCount(value: number): value is SupportedFrameCount {
   return SUPPORTED_FRAME_COUNTS.includes(value as SupportedFrameCount);
@@ -38,17 +39,28 @@ export function frameFilename(index: number, extension: "png" | "webp" = "webp")
   return `frame-${String(index).padStart(3, "0")}.${extension}`;
 }
 
-export function buildPreloadOrder(frameCount: number) {
+export function buildPreloadOrder(frameCount: number, startFrame = 0) {
   if (!Number.isInteger(frameCount) || frameCount <= 0) {
     throw new Error("Frame count must be a positive integer.");
   }
 
-  const order = [0];
+  const normalizedStart = wrapFrameIndex(startFrame, frameCount);
+  const seen = new Set<number>([normalizedStart]);
+  const order = [normalizedStart];
+
   for (let distance = 1; order.length < frameCount; distance += 1) {
-    const forward = wrapFrameIndex(distance, frameCount);
-    const backward = wrapFrameIndex(-distance, frameCount);
-    if (!order.includes(forward)) order.push(forward);
-    if (!order.includes(backward)) order.push(backward);
+    const forward = wrapFrameIndex(normalizedStart + distance, frameCount);
+    if (!seen.has(forward)) {
+      seen.add(forward);
+      order.push(forward);
+    }
+    if (order.length >= frameCount) break;
+
+    const backward = wrapFrameIndex(normalizedStart - distance, frameCount);
+    if (!seen.has(backward)) {
+      seen.add(backward);
+      order.push(backward);
+    }
   }
   return order;
 }

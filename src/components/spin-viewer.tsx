@@ -17,6 +17,7 @@ type SpinViewerProps = {
   width: number;
   height: number;
   pixelsPerFrame?: number;
+  captureId?: string;
 };
 
 type DragState = {
@@ -32,22 +33,39 @@ export function SpinViewer({
   width,
   height,
   pixelsPerFrame = 10,
+  captureId,
 }: SpinViewerProps) {
+  const sequenceKey =
+    captureId ?? `${frameUrls.length}:${frameUrls[0] ?? ""}:${frameUrls[frameUrls.length - 1] ?? ""}`;
+
+  const [prevSequenceKey, setPrevSequenceKey] = useState(sequenceKey);
   const [currentFrame, setCurrentFrame] = useState(0);
   const [loadedCount, setLoadedCount] = useState(0);
   const [isAutoplaying, setIsAutoplaying] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  if (prevSequenceKey !== sequenceKey) {
+    setPrevSequenceKey(sequenceKey);
+    setCurrentFrame(0);
+    setLoadedCount(0);
+    setIsAutoplaying(false);
+    setIsDragging(false);
+  }
+
   const viewerRef = useRef<HTMLDivElement>(null);
   const currentFrameRef = useRef(0);
   const pendingFrameRef = useRef(0);
   const frameRequestRef = useRef<number | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const loadedFramesRef = useRef(new Set<number>());
+  const sequenceGenRef = useRef(0);
+  const cachedImagesRef = useRef<Map<number, HTMLImageElement>>(new Map());
 
   const commitFrame = useCallback(
     (nextFrame: number) => {
-      const wrapped = wrapFrameIndex(nextFrame, frameUrls.length);
+      const total = frameUrls.length || 1;
+      const wrapped = wrapFrameIndex(nextFrame, total);
       currentFrameRef.current = wrapped;
       pendingFrameRef.current = wrapped;
 
@@ -62,42 +80,89 @@ export function SpinViewer({
   );
 
   useEffect(() => {
-    const loaded = loadedFramesRef.current;
-    loaded.clear();
-    let cancelled = false;
-    let preloadTimer: number | null = null;
-    const cachedImages: HTMLImageElement[] = [];
-    const preloadOrder = buildPreloadOrder(frameUrls.length);
-    let nextPreload = 0;
+    sequenceGenRef.current += 1;
+    const currentGen = sequenceGenRef.current;
 
-    function preloadBatch() {
-      const batchSize = nextPreload === 0 ? 6 : 4;
-      const batchEnd = Math.min(nextPreload + batchSize, preloadOrder.length);
-      for (; nextPreload < batchEnd; nextPreload += 1) {
-        const index = preloadOrder[nextPreload];
-        const image = new Image();
-        cachedImages.push(image);
-        image.decoding = "async";
-        image.onload = () => {
-          if (cancelled || loaded.has(index)) return;
-          loaded.add(index);
-          setLoadedCount(loaded.size);
-        };
-        image.src = frameUrls[index];
+    currentFrameRef.current = 0;
+    pendingFrameRef.current = 0;
+    dragRef.current = null;
+    loadedFramesRef.current.clear();
+    cachedImagesRef.current.clear();
+
+    if (frameUrls.length === 0) return;
+
+    let cancelled = false;
+    let timerId: number | null = null;
+    const loaded = loadedFramesRef.current;
+    const cachedImages = cachedImagesRef.current;
+    const loadingSet = new Set<number>();
+
+    async function loadFrame(index: number) {
+      if (cancelled || currentGen !== sequenceGenRef.current) return;
+      if (loaded.has(index) || loadingSet.has(index)) return;
+
+      loadingSet.add(index);
+      const img = new Image();
+      cachedImages.set(index, img);
+      img.decoding = "async";
+      img.src = frameUrls[index];
+
+      try {
+        if ("decode" in img && typeof img.decode === "function") {
+          await img.decode();
+        } else {
+          await new Promise<void>((resolve) => {
+            img.onload = img.onerror = () => resolve();
+          });
+        }
+      } catch {
+        // Non-fatal decode error or abort; frame still proceeds
       }
 
-      if (nextPreload < preloadOrder.length) {
-        preloadTimer = window.setTimeout(preloadBatch, 70);
+      loadingSet.delete(index);
+      if (cancelled || currentGen !== sequenceGenRef.current) return;
+
+      if (!loaded.has(index)) {
+        loaded.add(index);
+        setLoadedCount(loaded.size);
       }
     }
-    preloadBatch();
+
+    async function processNextBatches() {
+      if (cancelled || currentGen !== sequenceGenRef.current) return;
+      if (loaded.size >= frameUrls.length) return;
+
+      const priorityOrder = buildPreloadOrder(frameUrls.length, currentFrameRef.current);
+      const batch: number[] = [];
+      const batchSize = loaded.size === 0 ? 6 : 4;
+
+      for (const idx of priorityOrder) {
+        if (!loaded.has(idx) && !loadingSet.has(idx)) {
+          batch.push(idx);
+          if (batch.length >= batchSize) break;
+        }
+      }
+
+      if (batch.length > 0) {
+        await Promise.all(batch.map((idx) => loadFrame(idx)));
+      }
+
+      if (!cancelled && currentGen === sequenceGenRef.current && loaded.size < frameUrls.length) {
+        timerId = window.setTimeout(processNextBatches, 40);
+      }
+    }
+
+    processNextBatches();
 
     return () => {
       cancelled = true;
-      if (preloadTimer !== null) window.clearTimeout(preloadTimer);
-      for (const image of cachedImages) image.onload = null;
+      if (timerId !== null) window.clearTimeout(timerId);
+      for (const img of cachedImages.values()) {
+        img.onload = null;
+        img.onerror = null;
+      }
     };
-  }, [frameUrls]);
+  }, [sequenceKey, frameUrls]);
 
   useEffect(() => {
     if (!isAutoplaying) return;
@@ -133,7 +198,11 @@ export function SpinViewer({
       lastX: event.clientX,
       accumulatedX: 0,
     };
-    event.currentTarget.setPointerCapture(event.pointerId);
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Defensive for non-browser/unsupported environments
+    }
   }
 
   function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
@@ -156,8 +225,12 @@ export function SpinViewer({
     if (dragRef.current?.pointerId !== event.pointerId) return;
     dragRef.current = null;
     setIsDragging(false);
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
+    try {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+    } catch {
+      // Defensive fallback
     }
   }
 
@@ -187,8 +260,10 @@ export function SpinViewer({
     commitFrame(0);
   }
 
-  const readyThreshold = Math.min(6, frameUrls.length);
+  const readyThreshold = Math.min(6, frameUrls.length || 1);
   const enoughFramesLoaded = loadedCount >= readyThreshold;
+  const safeFrameIndex = wrapFrameIndex(currentFrame, frameUrls.length || 1);
+  const activeFrameUrl = frameUrls[safeFrameIndex] ?? frameUrls[0] ?? "";
 
   return (
     <div className="spin-viewer" ref={viewerRef}>
@@ -204,16 +279,18 @@ export function SpinViewer({
         onPointerCancel={endPointerInteraction}
       >
         {/* Only this current image is rendered; all other frames are cached off-DOM. */}
-        {/* eslint-disable-next-line @next/next/no-img-element -- direct URL swapping is the core image-sequence viewer behavior */}
-        <img
-          src={frameUrls[currentFrame]}
-          alt={`${vehicleName}, angle ${currentFrame + 1} of ${frameUrls.length}`}
-          width={width}
-          height={height}
-          draggable={false}
-          onDragStart={(event) => event.preventDefault()}
-        />
-        {!enoughFramesLoaded ? (
+        {activeFrameUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- direct URL swapping is the core image-sequence viewer behavior
+          <img
+            src={activeFrameUrl}
+            alt={`${vehicleName}, angle ${safeFrameIndex + 1} of ${frameUrls.length}`}
+            width={width}
+            height={height}
+            draggable={false}
+            onDragStart={(event) => event.preventDefault()}
+          />
+        ) : null}
+        {!enoughFramesLoaded && frameUrls.length > 0 ? (
           <div className="spin-loading" role="status">
             Preparing spin · {loadedCount}/{readyThreshold}
           </div>
@@ -222,7 +299,7 @@ export function SpinViewer({
       </div>
 
       <div className="spin-readout" aria-live="polite">
-        <span>Frame {currentFrame + 1} / {frameUrls.length}</span>
+        <span>Frame {safeFrameIndex + 1} / {frameUrls.length}</span>
         <span>{loadedCount === frameUrls.length ? "All frames loaded" : `${loadedCount} loaded`}</span>
       </div>
 

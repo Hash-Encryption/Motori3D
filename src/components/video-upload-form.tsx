@@ -18,7 +18,7 @@ export function VideoUploadForm({ vehicleId }: VideoUploadFormProps) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const file = fileInputRef.current?.files?.[0];
-    const targetFrameCount = String(formData.get("targetFrameCount") ?? "72");
+    const targetFrameCount = String(formData.get("targetFrameCount") ?? "48");
 
     if (!file) {
       setError("Select an MP4 or MOV walkaround video.");
@@ -79,9 +79,9 @@ export function VideoUploadForm({ vehicleId }: VideoUploadFormProps) {
 
       <div className="field frame-count-field">
         <label htmlFor="targetFrameCount">Spin frame count</label>
-        <select id="targetFrameCount" name="targetFrameCount" defaultValue="72">
+        <select id="targetFrameCount" name="targetFrameCount" defaultValue="48">
           <option value="36">36 frames · fastest</option>
-          <option value="48">48 frames · balanced</option>
+          <option value="48">48 frames · balanced (recommended)</option>
           <option value="72">72 frames · smoothest</option>
         </select>
       </div>

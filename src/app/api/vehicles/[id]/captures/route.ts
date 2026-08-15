@@ -61,7 +61,7 @@ export async function POST(
     );
   }
 
-  const targetFrameCount = Number(request.headers.get("x-target-frame-count") ?? "72");
+  const targetFrameCount = Number(request.headers.get("x-target-frame-count") ?? "48");
   if (!allowedFrameCounts.has(targetFrameCount)) {
     return Response.json(
       { error: "Target frame count must be 36, 48, or 72." },

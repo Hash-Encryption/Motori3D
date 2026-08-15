@@ -39,6 +39,7 @@ export default async function ViewerPage(props: PageProps<"/vehicles/[id]/viewer
 
       {ready && capture ? (
         <SpinViewer
+          captureId={capture.id}
           vehicleName={vehicle.name}
           frameUrls={frames.map(
             (frame) => `/api/captures/${capture.id}/frames/${frame.frameIndex}`,
