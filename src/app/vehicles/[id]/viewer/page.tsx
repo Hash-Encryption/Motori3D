@@ -95,7 +95,7 @@ export default async function ViewerPage(props: PageProps<"/vehicles/[id]/viewer
   try {
     const supabase = await createClient();
     const cloudCapture = await getLatestCloudCaptureForVehicle(supabase, id);
-    if (cloudCapture && cloudCapture.status === "READY") {
+    if (cloudCapture && (cloudCapture.status === "READY" || cloudCapture.status === "PROCESSING")) {
       captureId = cloudCapture.id;
       spinWidth = cloudCapture.width || 1920;
       spinHeight = cloudCapture.height || 1080;
