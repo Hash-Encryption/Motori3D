@@ -126,16 +126,17 @@ export async function POST(
     captureId,
     extension as ".mp4" | ".mov",
   );
-  createCapture({
-    id: captureId,
-    vehicleId,
-    sourceVideoPath: source.relativePath,
-    sourceFilename: filename,
-    sourceMimeType: mimeType,
-    targetFrameCount: targetFrameCount as 36 | 48 | 72,
-  });
 
   try {
+    createCapture({
+      id: captureId,
+      vehicleId,
+      sourceVideoPath: source.relativePath,
+      sourceFilename: filename,
+      sourceMimeType: mimeType,
+      targetFrameCount: targetFrameCount as 36 | 48 | 72,
+    });
+
     const sizeBytes = await writeUploadStream(request.body, source.absolutePath, maximumBytes);
     if (sizeBytes === 0) {
       throw new Error("The uploaded video is empty.");
@@ -147,13 +148,27 @@ export async function POST(
   } catch (error) {
     const technicalMessage = error instanceof Error ? error.message : "Unknown upload failure";
     console.error("Video upload or analysis failed", { vehicleId, captureId, error });
-    markCaptureFailed(captureId, technicalMessage);
-    removeCaptureFiles(vehicleId, captureId);
 
-    const publicMessage =
-      error instanceof UploadTooLargeError
-        ? error.message
-        : "The video could not be read. Confirm it is a valid MP4 or MOV file and try again.";
+    try {
+      markCaptureFailed(captureId, technicalMessage);
+      removeCaptureFiles(vehicleId, captureId);
+    } catch {
+      // Ignored if platform doesn't have filesystem
+    }
+
+    const isPlatformError =
+      technicalMessage.includes("[unenv]") ||
+      technicalMessage.includes("mkdirSync") ||
+      technicalMessage.includes("DatabaseSync") ||
+      technicalMessage.includes("spawn") ||
+      technicalMessage.includes("not implemented");
+
+    const publicMessage = isPlatformError
+      ? "Edge runtime notice: Local FFmpeg frame extraction requires a Node.js runtime environment (e.g. running 'npm run dev' locally). In serverless cloud workers, connect a cloud media processing worker."
+      : error instanceof UploadTooLargeError
+      ? error.message
+      : "The video could not be read. Confirm it is a valid MP4 or MOV file and try again.";
+
     return Response.json({ error: publicMessage }, { status: 422 });
   }
 }
