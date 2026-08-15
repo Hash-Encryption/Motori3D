@@ -30,8 +30,7 @@ export default function SignInPage() {
         throw new Error(data.error || "Sign in failed.");
       }
 
-      router.push("/account");
-      router.refresh();
+      window.location.href = "/account";
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred.");
     } finally {

@@ -40,8 +40,7 @@ export default function SignUpPage() {
       }
 
       if (data.sessionCreated) {
-        router.push("/account");
-        router.refresh();
+        window.location.href = "/account";
       } else {
         setMessage(
           "Account created! Please check your email for confirmation before signing in.",

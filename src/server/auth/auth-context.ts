@@ -123,7 +123,42 @@ export async function getAuthContext(
   }
 
   if (validMemberships.length === 0) {
-    return null;
+    // Auto-provision initial dealership for authenticated user who doesn't have one yet
+    const nameSeed =
+      profile?.fullName ||
+      user.user_metadata?.full_name ||
+      user.email?.split("@")[0] ||
+      "Dealership";
+    const defaultName = `${nameSeed}'s Motors`;
+    const defaultSlug = `motors-${user.id.slice(0, 8)}`;
+
+    const { data: rpcResult } = await supabase.rpc("create_dealership", {
+      dealership_name: defaultName,
+      dealership_slug: defaultSlug,
+    });
+
+    if (rpcResult?.business_id) {
+      const newBusiness: BusinessRecord = {
+        id: rpcResult.business_id,
+        name: rpcResult.name || defaultName,
+        slug: rpcResult.slug || defaultSlug,
+        status: "ACTIVE",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      validMemberships.push({
+        id: rpcResult.business_id,
+        businessId: rpcResult.business_id,
+        userId: user.id,
+        role: "DEALER_ADMIN",
+        status: "ACTIVE",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        business: newBusiness,
+      });
+    } else {
+      return null;
+    }
   }
 
   // Determine requested or preferred business context
