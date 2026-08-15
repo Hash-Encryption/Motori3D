@@ -16,7 +16,15 @@ export function AppShell({ children }: AppShellProps) {
             </span>
             <span>Vehicle 360</span>
           </Link>
-          <span className="environment-label">Local MVP</span>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/account"
+              className="text-xs font-semibold px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 transition-colors"
+            >
+              Account
+            </Link>
+            <span className="environment-label">Hybrid SaaS</span>
+          </div>
         </div>
       </header>
       <main className="app-main">{children}</main>

@@ -47,6 +47,19 @@ export async function POST(
     return Response.json({ error: "Vehicle project not found." }, { status: 404 });
   }
 
+  // Tenant boundary: If vehicle belongs to a dealership, caller must be authorized for that dealership
+  if (vehicle.businessId) {
+    try {
+      const { requireAuthContext } = await import("@/server/auth/auth-context");
+      await requireAuthContext({ requestedBusinessId: vehicle.businessId });
+    } catch {
+      return Response.json(
+        { error: "Access denied. You do not have permission to upload captures for this dealership." },
+        { status: 403 },
+      );
+    }
+  }
+
   if (!request.body) {
     return Response.json({ error: "Select a video to upload." }, { status: 400 });
   }

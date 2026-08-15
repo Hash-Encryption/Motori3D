@@ -1,9 +1,28 @@
-import { createVehicle, listVehicles } from "@/server/vehicles/vehicle-repository";
+import { getAuthContext } from "@/server/auth/auth-context";
+import {
+  createVehicle,
+  createVehicleForBusiness,
+  listVehicles,
+  listVehiclesForBusiness,
+} from "@/server/vehicles/vehicle-repository";
 import { validateCreateVehicle } from "@/server/vehicles/vehicle-validation";
 
 export const runtime = "nodejs";
 
-export function GET() {
+export async function GET() {
+  const authContext = await getAuthContext().catch(() => null);
+
+  if (authContext) {
+    return Response.json({
+      vehicles: listVehiclesForBusiness(authContext.business.id),
+      business: {
+        id: authContext.business.id,
+        name: authContext.business.name,
+      },
+    });
+  }
+
+  // Fallback to legacy unassigned vehicles for local test / prototype pipelines
   return Response.json({ vehicles: listVehicles() });
 }
 
@@ -30,8 +49,13 @@ export async function POST(request: Request) {
     );
   }
 
+  const authContext = await getAuthContext().catch(() => null);
+
   try {
-    const vehicle = createVehicle(validation.value);
+    const vehicle = authContext
+      ? createVehicleForBusiness(validation.value, authContext.business.id)
+      : createVehicle(validation.value);
+
     return Response.json({ vehicle }, { status: 201 });
   } catch (error) {
     console.error("Failed to create vehicle", error);
