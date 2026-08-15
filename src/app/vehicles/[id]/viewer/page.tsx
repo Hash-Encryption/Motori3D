@@ -86,26 +86,38 @@ export default async function ViewerPage(props: PageProps<"/vehicles/[id]/viewer
     }
   }
 
-  // 1. Check Cloud 360 Spin Captures first
+  // 1. Check Cloud 360 Spin Captures first (query with server Supabase client)
   let frameUrls: string[] = [];
   let spinWidth = 1920;
   let spinHeight = 1080;
   let captureId = id;
 
-  if (authContext) {
-    try {
-      const supabase = await createClient();
-      const cloudCapture = await getLatestCloudCaptureForVehicle(supabase, id);
-      if (cloudCapture && cloudCapture.status === "READY") {
-        captureId = cloudCapture.id;
-        spinWidth = cloudCapture.width || 1920;
-        spinHeight = cloudCapture.height || 1080;
-        const frames = await listCloudCaptureFrames(supabase, cloudCapture.id);
+  try {
+    const supabase = await createClient();
+    const cloudCapture = await getLatestCloudCaptureForVehicle(supabase, id);
+    if (cloudCapture && cloudCapture.status === "READY") {
+      captureId = cloudCapture.id;
+      spinWidth = cloudCapture.width || 1920;
+      spinHeight = cloudCapture.height || 1080;
+
+      const frames = await listCloudCaptureFrames(supabase, cloudCapture.id);
+      if (frames && frames.length > 0) {
         frameUrls = frames.map((f) => f.public_url);
+      } else {
+        // Construct canonical public storage URLs directly
+        const supabaseUrl =
+          process.env.NEXT_PUBLIC_SUPABASE_URL ||
+          "https://ilebbqeknviaqhyvpygv.supabase.co";
+        const bId =
+          cloudCapture.business_id || vehicle.businessId || "default-dealership";
+        frameUrls = Array.from({ length: cloudCapture.frame_count || 48 }).map(
+          (_, i) =>
+            `${supabaseUrl}/storage/v1/object/public/vehicle-spins/${bId}/${id}/${cloudCapture.id}/frame_${String(i).padStart(3, "0")}.webp`,
+        );
       }
-    } catch {
-      // Ignored
     }
+  } catch (err) {
+    console.warn("Cloud capture retrieval note:", err);
   }
 
   // 2. Fallback to local capture frames if no cloud frames

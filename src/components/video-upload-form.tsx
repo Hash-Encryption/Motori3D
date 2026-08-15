@@ -138,9 +138,8 @@ export function VideoUploadForm({ vehicleId, businessId }: VideoUploadFormProps)
       setStatusMessage("360 turntable ready!");
       setProgressPercent(100);
 
-      // Navigate straight to 360 Viewer!
-      router.push(`/vehicles/${vehicleId}/viewer`);
-      router.refresh();
+      // Navigate straight to 360 Viewer with full document reload
+      window.location.href = `/vehicles/${vehicleId}/viewer`;
     } catch (err) {
       if (!cancelRef.current) {
         console.error("360 processing error:", err);
