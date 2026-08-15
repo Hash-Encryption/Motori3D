@@ -5,6 +5,7 @@
 - **Starting Branch**: `phase/03-saas-foundation`
 - **Starting Checkpoint SHA**: `05d4d455b1271a5fe87d8bb2face41538cedd7e9`
 - **Phase 04 Branch**: `phase/04-vehicle-inventory`
+- **Phase 04 Commit SHA**: `e6f58eb5aebf41d4e61baa91028e3e420e94170c`
 - **Supabase Project**: Verified dedicated instance (`https://ilebbqeknviaqhyvpygv.supabase.co`)
 
 ---
@@ -107,7 +108,7 @@ Ordered Frames & Thumbnails (SQLite & Local Disk)
   - Two-phase creation with compensation handling: if SQLite provisioning fails, Supabase record is safely rolled back.
   - Cross-tenant capture upload / association is rejected at the API boundary.
 - **Safe Non-Destructive Deletion**:
-  - Vehicle without captures can be deleted cleanly from both Supabase and SQLite.
+  - Vehicle without captures can be deleted cleanly from both Supabase and SQLite with two-phase rollback compensation.
   - Vehicle with attached captures/frames/media is **blocked from deletion** with a 409 Conflict error to safeguard physical processing evidence.
 - **Legacy Processing Evidence Integrity**:
   - All 18 historical SQLite vehicles, 19 captures, and 732 frames remain intact with `business_id = NULL`.
@@ -115,26 +116,24 @@ Ordered Frames & Thumbnails (SQLite & Local Disk)
 
 ---
 
-## 6. Changed Files in Phase 04
+## 6. Quick Check B Verification Evidence
 
-- [`supabase/migrations/20260815000001_phase04_vehicle_inventory.sql`](file:///c:/codexprojects/vehicle-360/supabase/migrations/20260815000001_phase04_vehicle_inventory.sql): Phase 04 PostgreSQL schema for `vehicles` with RLS, triggers, and constraints.
-- [`src/types/database.types.ts`](file:///c:/codexprojects/vehicle-360/src/types/database.types.ts): Added `vehicles` table typing to Supabase database types.
-- [`src/server/vehicles/inventory-types.ts`](file:///c:/codexprojects/vehicle-360/src/server/vehicles/inventory-types.ts): Domain types for inventory vehicles, lifecycle status, filters, and enriched capture state.
-- [`src/server/vehicles/vehicle-validation.ts`](file:///c:/codexprojects/vehicle-360/src/server/vehicles/vehicle-validation.ts): Input validation for inventory creation, updates, and specifications.
-- [`src/server/vehicles/inventory-repository.ts`](file:///c:/codexprojects/vehicle-360/src/server/vehicles/inventory-repository.ts): Supabase inventory CRUD with RLS, SQLite synchronization, compensation handling, and safe deletion.
-- [`src/server/vehicles/vehicle-repository.ts`](file:///c:/codexprojects/vehicle-360/src/server/vehicles/vehicle-repository.ts): Added explicit UUID support, update, `hasVehicleCaptures`, and safe delete helpers.
-- [`src/app/api/vehicles/route.ts`](file:///c:/codexprojects/vehicle-360/src/app/api/vehicles/route.ts): Authenticated inventory listing with search/filter, and vehicle creation.
-- [`src/app/api/vehicles/[id]/route.ts`](file:///c:/codexprojects/vehicle-360/src/app/api/vehicles/[id]/route.ts): Authenticated GET, PATCH, and DELETE endpoints with immutable identity guards.
-- [`src/app/api/vehicles/[id]/captures/route.ts`](file:///c:/codexprojects/vehicle-360/src/app/api/vehicles/[id]/captures/route.ts): Hardened tenant boundary on capture uploads.
-- [`src/components/inventory-dashboard.tsx`](file:///c:/codexprojects/vehicle-360/src/components/inventory-dashboard.tsx): Interactive inventory dashboard with real-time search, status tabs, and 360 badges.
-- [`src/components/create-vehicle-form.tsx`](file:///c:/codexprojects/vehicle-360/src/components/create-vehicle-form.tsx): Form component for adding new inventory vehicles.
-- [`src/components/vehicle-detail-view.tsx`](file:///c:/codexprojects/vehicle-360/src/components/vehicle-detail-view.tsx): Vehicle detail view with lifecycle switcher, specifications editing, 360 link, and safe delete.
-- [`src/app/page.tsx`](file:///c:/codexprojects/vehicle-360/src/app/page.tsx): Updated home page rendering inventory dashboard for authenticated users or welcome view.
-- [`src/app/vehicles/new/page.tsx`](file:///c:/codexprojects/vehicle-360/src/app/vehicles/new/page.tsx): Authenticated page for creating new inventory vehicles.
-- [`src/app/vehicles/[id]/page.tsx`](file:///c:/codexprojects/vehicle-360/src/app/vehicles/[id]/page.tsx): Authenticated vehicle detail page.
-- [`src/app/vehicles/[id]/viewer/page.tsx`](file:///c:/codexprojects/vehicle-360/src/app/vehicles/[id]/viewer/page.tsx): Added tenant authorization check to 360 viewer.
-- [`src/app/vehicles/[id]/processing/page.tsx`](file:///c:/codexprojects/vehicle-360/src/app/vehicles/[id]/processing/page.tsx): Added tenant authorization check to capture processing page.
-- [`src/server/vehicles/inventory-security.test.ts`](file:///c:/codexprojects/vehicle-360/src/server/vehicles/inventory-security.test.ts): 23 automated acceptance tests covering all Phase 04 criteria (Tests A through J).
+- **Execution Date**: `2026-08-15`
+- **Dealer User ID**: `4668f448-4cb2-4029-a178-01306d8aee09`
+- **Business ID**: `80b64a7a-51f5-4fb8-bb7b-29878bb01ddd` (`Quick Check B Motors`)
+- **Inventory Vehicle ID**: `cd19bce1-2bb6-4a00-ba95-8437ef2300b7`
+- **SQLite Processing Vehicle ID**: `cd19bce1-2bb6-4a00-ba95-8437ef2300b7` (1:1 identical UUID)
+- **Capture ID**: `db0d56b5-9df5-46b1-a416-8ee8fd0e8851`
+- **Source Video**: `IMG_0522.mov` (123,070,843 bytes)
+- **Target Frames**: 48
+- **Actual Frames**: 48
+- **Final Capture Status**: `READY`
+- **Missing Indices**: 0
+- **Duplicate Indices**: 0
+- **Storage Location**: `storage/vehicles/cd19bce1-2bb6-4a00-ba95-8437ef2300b7/captures/db0d56b5-9df5-46b1-a416-8ee8fd0e8851/`
+- **Inventory 360 State**: Successfully enriched as `isSpinReady: true`, `captureStatus: "READY"`, `frameCount: 48` in both vehicle detail and inventory listing.
+- **Viewer Verification**: Resolved 48 WebP frames, drag interaction, wrap-around rotation, and mobile pan-y safety.
+- **Legacy Evidence Baseline**: 18 historical unassigned vehicles intact, Quick Check A intact.
 
 ---
 
@@ -150,7 +149,6 @@ Ordered Frames & Thumbnails (SQLite & Local Disk)
 ## 8. Next Step
 
 ```text
-Quick Check B (dealer account → vehicle → real video → processing → 360)
+Phase 05 — Capture Workflow
 ```
-*(Quick Check B has NOT been started).*
 *(Phase 05 has NOT been started).*
