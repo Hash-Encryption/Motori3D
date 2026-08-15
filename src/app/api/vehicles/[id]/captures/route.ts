@@ -13,6 +13,7 @@ import {
   UploadTooLargeError,
   writeUploadStream,
 } from "@/server/storage/local-storage";
+import { getAuthContext } from "@/server/auth/auth-context";
 import { getVehicle } from "@/server/vehicles/vehicle-repository";
 
 export const runtime = "nodejs";
@@ -42,17 +43,45 @@ export async function POST(
   context: RouteContext<"/api/vehicles/[id]/captures">,
 ) {
   const { id: vehicleId } = await context.params;
-  const vehicle = getVehicle(vehicleId);
+  let vehicle: { id: string; name: string; businessId?: string | null } | null = null;
+
+  const authContext = await getAuthContext().catch(() => null);
+  if (authContext) {
+    try {
+      const { createClient } = await import("@/lib/supabase/server");
+      const { getInventoryVehicle } = await import("@/server/vehicles/inventory-repository");
+      const supabase = await createClient();
+      const inv = await getInventoryVehicle(supabase, vehicleId, authContext.business.id);
+      if (inv) {
+        vehicle = {
+          id: inv.id,
+          name: `${inv.year} ${inv.make} ${inv.model}`,
+          businessId: inv.businessId,
+        };
+      }
+    } catch {
+      // Continue to local lookup
+    }
+  }
+
+  if (!vehicle) {
+    try {
+      vehicle = getVehicle(vehicleId);
+    } catch {
+      // Ignored if SQLite is unavailable
+    }
+  }
+
   if (!vehicle) {
     return Response.json({ error: "Vehicle project not found." }, { status: 404 });
   }
 
   // Tenant boundary: If vehicle belongs to a dealership, caller must be authorized for that dealership
   if (vehicle.businessId) {
-    try {
-      const { requireAuthContext } = await import("@/server/auth/auth-context");
-      await requireAuthContext({ requestedBusinessId: vehicle.businessId });
-    } catch {
+    if (
+      !authContext ||
+      !authContext.allMemberships.some((m) => m.businessId === vehicle.businessId)
+    ) {
       return Response.json(
         { error: "Access denied. You do not have permission to upload captures for this dealership." },
         { status: 403 },

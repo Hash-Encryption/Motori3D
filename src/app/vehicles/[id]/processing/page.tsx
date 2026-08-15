@@ -3,8 +3,10 @@ import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { CaptureProcessingPanel } from "@/components/capture-processing-panel";
 import { VideoUploadForm } from "@/components/video-upload-form";
+import { createClient } from "@/lib/supabase/server";
 import { getAuthContext } from "@/server/auth/auth-context";
 import { getLatestCaptureForVehicle } from "@/server/captures/capture-repository";
+import { getInventoryVehicle } from "@/server/vehicles/inventory-repository";
 import { getVehicle } from "@/server/vehicles/vehicle-repository";
 
 export const metadata = {
@@ -22,18 +24,74 @@ export default async function ProcessingPage(
   props: PageProps<"/vehicles/[id]/processing">,
 ) {
   const { id } = await props.params;
-  const vehicle = getVehicle(id);
-  if (!vehicle) notFound();
 
-  // Tenant security boundary: If vehicle is owned by a dealership, verify access
+  let vehicle: {
+    id: string;
+    name: string;
+    make?: string | null;
+    model?: string | null;
+    year?: number | null;
+    businessId?: string | null;
+  } | null = null;
+
+  const authContext = await getAuthContext().catch(() => null);
+
+  // 1. Check Supabase inventory first if authenticated
+  if (authContext) {
+    try {
+      const supabase = await createClient();
+      const inventoryVehicle = await getInventoryVehicle(
+        supabase,
+        id,
+        authContext.business.id,
+      );
+      if (inventoryVehicle) {
+        vehicle = {
+          id: inventoryVehicle.id,
+          name: `${inventoryVehicle.year} ${inventoryVehicle.make} ${inventoryVehicle.model}`,
+          make: inventoryVehicle.make,
+          model: inventoryVehicle.model,
+          year: inventoryVehicle.year,
+          businessId: inventoryVehicle.businessId,
+        };
+      }
+    } catch {
+      // Continue to local lookup if error occurs
+    }
+  }
+
+  // 2. Fallback to local SQLite database if not found in Supabase
+  if (!vehicle) {
+    try {
+      const localVehicle = getVehicle(id);
+      if (localVehicle) {
+        vehicle = localVehicle;
+      }
+    } catch {
+      // Ignored if SQLite is unavailable on edge
+    }
+  }
+
+  if (!vehicle) {
+    notFound();
+  }
+
+  // Tenant security boundary
   if (vehicle.businessId) {
-    const authContext = await getAuthContext().catch(() => null);
-    if (!authContext || !authContext.allMemberships.some((m) => m.businessId === vehicle.businessId)) {
+    if (
+      !authContext ||
+      !authContext.allMemberships.some((m) => m.businessId === vehicle.businessId)
+    ) {
       redirect("/auth/sign-in");
     }
   }
 
-  const capture = getLatestCaptureForVehicle(id);
+  let capture = null;
+  try {
+    capture = getLatestCaptureForVehicle(id);
+  } catch {
+    // Ignored in cloud environments without local captures
+  }
 
   return (
     <AppShell>
