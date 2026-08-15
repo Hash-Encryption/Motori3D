@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 
-import { buildPreloadOrder, wrapFrameIndex } from "@/lib/spin/frame-utils";
+import { wrapFrameIndex } from "@/lib/spin/frame-utils";
 
 type SpinViewerProps = {
   vehicleName: string;
@@ -32,7 +32,7 @@ export function SpinViewer({
   frameUrls,
   width,
   height,
-  pixelsPerFrame = 10,
+  pixelsPerFrame = 8,
   captureId,
 }: SpinViewerProps) {
   const sequenceKey =
@@ -79,6 +79,7 @@ export function SpinViewer({
     [frameUrls.length],
   );
 
+  // Fast Parallel Preloading Pipeline
   useEffect(() => {
     sequenceGenRef.current += 1;
     const currentGen = sequenceGenRef.current;
@@ -92,16 +93,13 @@ export function SpinViewer({
     if (frameUrls.length === 0) return;
 
     let cancelled = false;
-    let timerId: number | null = null;
     const loaded = loadedFramesRef.current;
     const cachedImages = cachedImagesRef.current;
-    const loadingSet = new Set<number>();
 
-    async function loadFrame(index: number) {
+    async function loadFrame(index: number): Promise<void> {
       if (cancelled || currentGen !== sequenceGenRef.current) return;
-      if (loaded.has(index) || loadingSet.has(index)) return;
+      if (loaded.has(index)) return;
 
-      loadingSet.add(index);
       const img = new Image();
       cachedImages.set(index, img);
       img.decoding = "async";
@@ -116,10 +114,9 @@ export function SpinViewer({
           });
         }
       } catch {
-        // Non-fatal decode error or abort; frame still proceeds
+        // Ignored non-fatal decode error
       }
 
-      loadingSet.delete(index);
       if (cancelled || currentGen !== sequenceGenRef.current) return;
 
       if (!loaded.has(index)) {
@@ -128,35 +125,25 @@ export function SpinViewer({
       }
     }
 
-    async function processNextBatches() {
-      if (cancelled || currentGen !== sequenceGenRef.current) return;
-      if (loaded.size >= frameUrls.length) return;
+    // Load in fast concurrent waves of 12 frames
+    async function loadAllFrames() {
+      const total = frameUrls.length;
+      const concurrency = 12;
 
-      const priorityOrder = buildPreloadOrder(frameUrls.length, currentFrameRef.current);
-      const batch: number[] = [];
-      const batchSize = loaded.size === 0 ? 6 : 4;
-
-      for (const idx of priorityOrder) {
-        if (!loaded.has(idx) && !loadingSet.has(idx)) {
-          batch.push(idx);
-          if (batch.length >= batchSize) break;
+      for (let i = 0; i < total; i += concurrency) {
+        if (cancelled || currentGen !== sequenceGenRef.current) break;
+        const chunk = [];
+        for (let j = i; j < Math.min(i + concurrency, total); j++) {
+          chunk.push(loadFrame(j));
         }
-      }
-
-      if (batch.length > 0) {
-        await Promise.all(batch.map((idx) => loadFrame(idx)));
-      }
-
-      if (!cancelled && currentGen === sequenceGenRef.current && loaded.size < frameUrls.length) {
-        timerId = window.setTimeout(processNextBatches, 40);
+        await Promise.all(chunk);
       }
     }
 
-    processNextBatches();
+    loadAllFrames();
 
     return () => {
       cancelled = true;
-      if (timerId !== null) window.clearTimeout(timerId);
       for (const img of cachedImages.values()) {
         img.onload = null;
         img.onerror = null;
@@ -164,29 +151,15 @@ export function SpinViewer({
     };
   }, [sequenceKey, frameUrls]);
 
+  // Smooth Auto-Rotation Loop
   useEffect(() => {
     if (!isAutoplaying) return;
     const interval = window.setInterval(() => {
       commitFrame(currentFrameRef.current + 1);
-    }, 110);
+    }, 60);
+
     return () => window.clearInterval(interval);
-  }, [commitFrame, isAutoplaying]);
-
-  useEffect(() => {
-    function handleFullscreenChange() {
-      setIsFullscreen(document.fullscreenElement === viewerRef.current);
-    }
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (frameRequestRef.current !== null) {
-        window.cancelAnimationFrame(frameRequestRef.current);
-      }
-    };
-  }, []);
+  }, [isAutoplaying, commitFrame]);
 
   function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if (event.button !== 0) return;
@@ -201,7 +174,7 @@ export function SpinViewer({
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
-      // Defensive for non-browser/unsupported environments
+      // Defensive fallback
     }
   }
 
@@ -213,7 +186,6 @@ export function SpinViewer({
     drag.lastX = event.clientX;
     drag.accumulatedX += deltaX;
 
-    if (Math.abs(event.clientX - drag.startX) < 4) return;
     if (Math.abs(drag.accumulatedX) >= pixelsPerFrame) {
       const frameDelta = Math.trunc(drag.accumulatedX / pixelsPerFrame);
       drag.accumulatedX -= frameDelta * pixelsPerFrame;
@@ -250,8 +222,10 @@ export function SpinViewer({
   async function toggleFullscreen() {
     if (!document.fullscreenElement) {
       await viewerRef.current?.requestFullscreen();
+      setIsFullscreen(true);
     } else {
       await document.exitFullscreen();
+      setIsFullscreen(false);
     }
   }
 
@@ -260,15 +234,14 @@ export function SpinViewer({
     commitFrame(0);
   }
 
-  const readyThreshold = Math.min(6, frameUrls.length || 1);
-  const enoughFramesLoaded = loadedCount >= readyThreshold;
   const safeFrameIndex = wrapFrameIndex(currentFrame, frameUrls.length || 1);
   const activeFrameUrl = frameUrls[safeFrameIndex] ?? frameUrls[0] ?? "";
+  const isFullyLoaded = loadedCount === frameUrls.length;
 
   return (
     <div className="spin-viewer" ref={viewerRef}>
       <div
-        className={`spin-stage ${isDragging ? "is-dragging" : ""}`}
+        className={`spin-stage select-none ${isDragging ? "is-dragging cursor-grabbing" : "cursor-grab"}`}
         role="application"
         aria-label={`${vehicleName} 360 degree viewer`}
         tabIndex={0}
@@ -278,44 +251,71 @@ export function SpinViewer({
         onPointerUp={endPointerInteraction}
         onPointerCancel={endPointerInteraction}
       >
-        {/* Only this current image is rendered; all other frames are cached off-DOM. */}
         {activeFrameUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element -- direct URL swapping is the core image-sequence viewer behavior
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={activeFrameUrl}
             alt={`${vehicleName}, angle ${safeFrameIndex + 1} of ${frameUrls.length}`}
             width={width}
             height={height}
             draggable={false}
+            className="w-full h-auto object-contain pointer-events-none select-none transition-none"
             onDragStart={(event) => event.preventDefault()}
           />
         ) : null}
-        {!enoughFramesLoaded && frameUrls.length > 0 ? (
-          <div className="spin-loading" role="status">
-            Preparing spin · {loadedCount}/{readyThreshold}
+
+        {!isFullyLoaded && frameUrls.length > 0 && (
+          <div className="spin-loading absolute top-4 right-4 bg-black/70 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-semibold text-amber-400 flex items-center gap-2 border border-white/10" role="status">
+            <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            Buffering 60 FPS · {loadedCount}/{frameUrls.length}
           </div>
-        ) : null}
-        <div className="drag-hint" aria-hidden="true">← Drag to rotate →</div>
+        )}
+
+        <div className="drag-hint select-none" aria-hidden="true">
+          ↔ Drag horizontally to rotate 360°
+        </div>
       </div>
 
-      <div className="spin-readout" aria-live="polite">
-        <span>Frame {safeFrameIndex + 1} / {frameUrls.length}</span>
-        <span>{loadedCount === frameUrls.length ? "All frames loaded" : `${loadedCount} loaded`}</span>
+      <div className="spin-readout flex justify-between items-center px-2 py-1 text-xs text-stone-400" aria-live="polite">
+        <span className="font-mono">Frame {safeFrameIndex + 1} of {frameUrls.length}</span>
+        <span>{isFullyLoaded ? "⚡ 60 FPS Cached" : `Caching (${Math.round((loadedCount / (frameUrls.length || 1)) * 100)}%)`}</span>
       </div>
 
-      <div className="spin-controls" aria-label="360 viewer controls">
-        <button type="button" onClick={() => { setIsAutoplaying(false); commitFrame(currentFrameRef.current - 1); }}>
+      <div className="spin-controls flex flex-wrap gap-2 justify-center mt-3" aria-label="360 viewer controls">
+        <button
+          type="button"
+          className="button button-secondary text-sm px-3 py-1.5"
+          onClick={() => { setIsAutoplaying(false); commitFrame(currentFrameRef.current - 1); }}
+        >
           ← Previous
         </button>
-        <button type="button" onClick={() => setIsAutoplaying((value) => !value)}>
-          {isAutoplaying ? "Pause" : "Auto rotate"}
+        <button
+          type="button"
+          className="button button-primary text-sm px-4 py-1.5"
+          onClick={() => setIsAutoplaying((value) => !value)}
+        >
+          {isAutoplaying ? "⏸ Pause" : "▶ Auto Rotate"}
         </button>
-        <button type="button" onClick={() => { setIsAutoplaying(false); commitFrame(currentFrameRef.current + 1); }}>
+        <button
+          type="button"
+          className="button button-secondary text-sm px-3 py-1.5"
+          onClick={() => { setIsAutoplaying(false); commitFrame(currentFrameRef.current + 1); }}
+        >
           Next →
         </button>
-        <button type="button" onClick={resetView}>Front view</button>
-        <button type="button" onClick={toggleFullscreen}>
-          {isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+        <button
+          type="button"
+          className="button button-secondary text-sm px-3 py-1.5"
+          onClick={resetView}
+        >
+          Front View
+        </button>
+        <button
+          type="button"
+          className="button button-secondary text-sm px-3 py-1.5"
+          onClick={toggleFullscreen}
+        >
+          {isFullscreen ? "Exit Fullscreen" : "⛶ Fullscreen"}
         </button>
       </div>
     </div>
