@@ -1,9 +1,14 @@
-import "server-only";
-
 import { randomUUID } from "node:crypto";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/types/database.types";
+import {
+  createVehicleForBusiness,
+  deleteEmptyVehicleForBusiness,
+  getVehicleForBusiness,
+  hasVehicleCaptures,
+  updateVehicleForBusiness,
+} from "./vehicle-repository";
 import { getLatestCaptureForVehicle, listCaptureFrames } from "@/server/captures/capture-repository";
 import type {
   CreateInventoryVehicleInput,
@@ -13,17 +18,23 @@ import type {
   UpdateInventoryVehicleInput,
   VehicleLifecycleStatus,
 } from "./inventory-types";
-import {
-  createVehicleForBusiness,
-  deleteEmptyVehicleForBusiness,
-  getVehicleForBusiness,
-  hasVehicleCaptures,
-  updateVehicleForBusiness,
-} from "./vehicle-repository";
 
 type VehicleRow = Database["public"]["Tables"]["vehicles"]["Row"];
 
-function mapInventoryRow(row: VehicleRow): InventoryVehicle {
+function isPlatformUnsupportedError(err: unknown): boolean {
+  if (!err) return false;
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    msg.includes("[unenv]") ||
+    msg.includes("mkdirSync") ||
+    msg.includes("not implemented")
+  );
+}
+
+/**
+ * Maps a raw Supabase public.vehicles database row to an InventoryVehicle domain object.
+ */
+export function mapInventoryRow(row: VehicleRow): InventoryVehicle {
   return {
     id: row.id,
     businessId: row.business_id,
@@ -50,8 +61,19 @@ function mapInventoryRow(row: VehicleRow): InventoryVehicle {
  * Enriches an authoritative Supabase inventory vehicle with local SQLite capture state.
  */
 export function enrichInventoryVehicle(vehicle: InventoryVehicle): EnrichedInventoryVehicle {
-  const capture = getLatestCaptureForVehicle(vehicle.id);
-  const frames = capture?.status === "READY" ? listCaptureFrames(capture.id) : [];
+  let capture = null;
+  let frames: unknown[] = [];
+
+  try {
+    capture = getLatestCaptureForVehicle(vehicle.id);
+    frames = capture?.status === "READY" ? listCaptureFrames(capture.id) : [];
+  } catch (err) {
+    // In serverless cloud runtime (e.g. Cloudflare Workers) without local SQLite
+    if (!isPlatformUnsupportedError(err)) {
+      console.warn("Could not load local capture for vehicle", err);
+    }
+  }
+
   const isSpinReady = capture?.status === "READY" && frames.length > 0;
 
   return {
@@ -93,23 +115,25 @@ export async function listInventoryVehicles(
 
   query = query.order("created_at", { ascending: false });
 
-  const { data, error } = await query;
+  const { data: rows, error } = await query;
+
   if (error) {
+    console.error("Failed to list inventory vehicles from Supabase", error);
     throw new Error(`Failed to list inventory vehicles: ${error.message}`);
   }
 
-  return (data ?? []).map((row) => enrichInventoryVehicle(mapInventoryRow(row)));
+  return (rows || []).map((row) => enrichInventoryVehicle(mapInventoryRow(row)));
 }
 
 /**
- * Get a single inventory vehicle by ID for an authorized dealership tenant.
+ * Retrieve a single inventory vehicle by ID within the caller's authorized dealership.
  */
 export async function getInventoryVehicle(
   supabase: SupabaseClient<Database>,
   vehicleId: string,
   businessId: string,
 ): Promise<EnrichedInventoryVehicle | null> {
-  const { data, error } = await supabase
+  const { data: row, error } = await supabase
     .from("vehicles")
     .select("*")
     .eq("id", vehicleId)
@@ -117,14 +141,15 @@ export async function getInventoryVehicle(
     .maybeSingle();
 
   if (error) {
-    throw new Error(`Failed to get inventory vehicle: ${error.message}`);
+    console.error("Failed to fetch inventory vehicle from Supabase", error);
+    throw new Error(`Failed to fetch inventory vehicle: ${error.message}`);
   }
 
-  if (!data) {
+  if (!row) {
     return null;
   }
 
-  return enrichInventoryVehicle(mapInventoryRow(data));
+  return enrichInventoryVehicle(mapInventoryRow(row));
 }
 
 /**
@@ -183,12 +208,18 @@ export async function createInventoryVehicle(
       vehicleId,
     );
   } catch (sqliteError) {
-    // Partial failure compensation: Rollback the Supabase record to avoid broken processing identity
-    console.error("SQLite processing provisioning failed, compensating Supabase insert...", sqliteError);
-    await supabase.from("vehicles").delete().eq("id", vehicleId);
-    throw new Error(
-      `Failed to provision local processing plane for vehicle: ${sqliteError instanceof Error ? sqliteError.message : "SQLite error"}. Inventory creation was rolled back.`,
-    );
+    if (isPlatformUnsupportedError(sqliteError)) {
+      // In serverless cloud runtime (e.g. Cloudflare Workers without local disk/SQLite engine),
+      // Supabase is the canonical source of truth for inventory.
+      console.warn("Local SQLite processing ledger skipped on serverless platform.");
+    } else {
+      // Partial failure compensation in Node.js environment: Rollback the Supabase record
+      console.error("SQLite processing provisioning failed, compensating Supabase insert...", sqliteError);
+      await supabase.from("vehicles").delete().eq("id", vehicleId);
+      throw new Error(
+        `Failed to provision local processing plane for vehicle: ${sqliteError instanceof Error ? sqliteError.message : "SQLite error"}. Inventory creation was rolled back.`,
+      );
+    }
   }
 
   return enrichInventoryVehicle(mapInventoryRow(inserted));
@@ -234,18 +265,24 @@ export async function updateInventoryVehicle(
   }
 
   // Sync basic display metadata in SQLite if processing record exists
-  const existingLocal = getVehicleForBusiness(vehicleId, businessId);
-  if (existingLocal) {
-    const newMake = input.make ?? existingLocal.make;
-    const newModel = input.model ?? existingLocal.model;
-    const newYear = input.year ?? existingLocal.year;
-    updateVehicleForBusiness(vehicleId, businessId, {
-      name: `${newYear} ${newMake} ${newModel}`,
-      make: newMake,
-      model: newModel,
-      year: newYear,
-      stockIdentifier: input.stockNumber !== undefined ? input.stockNumber : existingLocal.stockIdentifier,
-    });
+  try {
+    const existingLocal = getVehicleForBusiness(vehicleId, businessId);
+    if (existingLocal) {
+      const newMake = input.make ?? existingLocal.make;
+      const newModel = input.model ?? existingLocal.model;
+      const newYear = input.year ?? existingLocal.year;
+      updateVehicleForBusiness(vehicleId, businessId, {
+        name: `${newYear} ${newMake} ${newModel}`,
+        make: newMake,
+        model: newModel,
+        year: newYear,
+        stockIdentifier: input.stockNumber !== undefined ? input.stockNumber : existingLocal.stockIdentifier,
+      });
+    }
+  } catch (sqliteErr) {
+    if (!isPlatformUnsupportedError(sqliteErr)) {
+      console.warn("Could not sync local SQLite metadata", sqliteErr);
+    }
   }
 
   return enrichInventoryVehicle(mapInventoryRow(updated));
@@ -277,18 +314,36 @@ export async function deleteInventoryVehicle(
   vehicleId: string,
   businessId: string,
 ): Promise<{ success: boolean }> {
+  let hasCaptures = false;
+  try {
+    hasCaptures = hasVehicleCaptures(vehicleId);
+  } catch (err) {
+    if (!isPlatformUnsupportedError(err)) {
+      console.warn("Could not check local captures", err);
+    }
+  }
+
   // Step 1: Check if processing plane holds captures or media evidence
-  if (hasVehicleCaptures(vehicleId)) {
+  if (hasCaptures) {
     throw new Error(
       "Cannot delete vehicle with attached captures or 360 media. Processing evidence is protected. Set status to SOLD instead.",
     );
   }
 
   // Step 2: Retain snapshot of local processing record before deletion
-  const localSnapshot = getVehicleForBusiness(vehicleId, businessId);
-
-  // Step 3: Delete empty SQLite stub
-  const { deleted: localDeleted } = deleteEmptyVehicleForBusiness(vehicleId, businessId);
+  let localSnapshot = null;
+  let localDeleted = false;
+  try {
+    localSnapshot = getVehicleForBusiness(vehicleId, businessId);
+    if (localSnapshot) {
+      const res = deleteEmptyVehicleForBusiness(vehicleId, businessId);
+      localDeleted = res.deleted;
+    }
+  } catch (err) {
+    if (!isPlatformUnsupportedError(err)) {
+      throw err;
+    }
+  }
 
   // Step 4: Delete Supabase inventory metadata with RLS
   const { error: supabaseError } = await supabase
