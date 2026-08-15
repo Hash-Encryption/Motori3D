@@ -5,6 +5,7 @@ import { CaptureProcessingPanel } from "@/components/capture-processing-panel";
 import { VideoUploadForm } from "@/components/video-upload-form";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthContext } from "@/server/auth/auth-context";
+import { getLatestCloudCaptureForVehicle } from "@/server/captures/cloud-capture-repository";
 import { getLatestCaptureForVehicle } from "@/server/captures/capture-repository";
 import { getInventoryVehicle } from "@/server/vehicles/inventory-repository";
 import { getVehicle } from "@/server/vehicles/vehicle-repository";
@@ -56,7 +57,7 @@ export default async function ProcessingPage(
         };
       }
     } catch {
-      // Continue to local lookup if error occurs
+      // Continue to local lookup
     }
   }
 
@@ -68,7 +69,7 @@ export default async function ProcessingPage(
         vehicle = localVehicle;
       }
     } catch {
-      // Ignored if SQLite is unavailable on edge
+      // Ignored if SQLite is unavailable
     }
   }
 
@@ -86,12 +87,26 @@ export default async function ProcessingPage(
     }
   }
 
-  let capture = null;
-  try {
-    capture = getLatestCaptureForVehicle(id);
-  } catch {
-    // Ignored in cloud environments without local captures
+  // Check for Cloud capture first
+  let cloudCapture = null;
+  if (authContext) {
+    try {
+      const supabase = await createClient();
+      cloudCapture = await getLatestCloudCaptureForVehicle(supabase, id);
+    } catch {
+      // Ignored
+    }
   }
+
+  // Fallback to local capture
+  let localCapture = null;
+  try {
+    localCapture = getLatestCaptureForVehicle(id);
+  } catch {
+    // Ignored
+  }
+
+  const hasCapture = cloudCapture !== null || localCapture !== null;
 
   return (
     <AppShell>
@@ -105,47 +120,61 @@ export default async function ProcessingPage(
         </div>
       </section>
 
-      {!capture || (capture.status === "FAILED" && !capture.sourceSizeBytes) ? (
+      {!hasCapture ? (
         <section className="panel" aria-labelledby="upload-title">
-          <h2 id="upload-title">
-            {capture?.status === "FAILED" ? "Try another video" : "Upload walkaround video"}
-          </h2>
+          <h2 id="upload-title">Upload & Generate 360 Spin</h2>
           <p className="helper-text">
-            Use one continuous 15–40 second phone video. Keep the full car near
-            the center at a roughly constant height and distance.
+            Use one continuous 15–40 second phone video. Walk in a complete circle around the car at a steady height.
           </p>
-          {capture?.status === "FAILED" ? (
-            <div className="capture-error" role="alert">
-              <strong>Previous upload failed</strong>
-              <span>{capture.error ?? "The file could not be analyzed."}</span>
-            </div>
-          ) : null}
-          <VideoUploadForm vehicleId={vehicle.id} />
+          <VideoUploadForm vehicleId={vehicle.id} businessId={vehicle.businessId} />
         </section>
-      ) : (
+      ) : cloudCapture ? (
+        <section className="panel" aria-labelledby="analysis-title">
+          <div className="capture-summary-heading">
+            <div>
+              <p className="status-badge status-ready">360 Spin Ready</p>
+              <h2 id="analysis-title">{cloudCapture.source_filename || "Walkaround 360"}</h2>
+            </div>
+          </div>
+
+          <dl className="metadata-grid">
+            <div><dt>Frames</dt><dd>{cloudCapture.frame_count} WebP frames</dd></div>
+            <div><dt>Resolution</dt><dd>{cloudCapture.width} × {cloudCapture.height}</dd></div>
+            <div><dt>Duration</dt><dd>{cloudCapture.duration_seconds?.toFixed(1)} sec</dd></div>
+            <div><dt>Framerate</dt><dd>{cloudCapture.fps?.toFixed(1)} fps</dd></div>
+          </dl>
+
+          <div className="form-actions mt-6 flex gap-3">
+            <a className="button button-primary" href={`/vehicles/${vehicle.id}/viewer`}>
+              Open 360 Viewer
+            </a>
+            <VideoUploadForm vehicleId={vehicle.id} businessId={vehicle.businessId} />
+          </div>
+        </section>
+      ) : localCapture ? (
         <section className="panel" aria-labelledby="analysis-title">
           <div className="capture-summary-heading">
             <div>
               <p className="status-badge status-ready">
-                {capture.status === "READY" ? "Spin ready" : "Video analyzed"}
+                {localCapture.status === "READY" ? "Spin ready" : "Video analyzed"}
               </p>
-              <h2 id="analysis-title">{capture.sourceFilename}</h2>
+              <h2 id="analysis-title">{localCapture.sourceFilename}</h2>
             </div>
-            <span className="capture-size">{formatBytes(capture.sourceSizeBytes)}</span>
+            <span className="capture-size">{formatBytes(localCapture.sourceSizeBytes)}</span>
           </div>
 
           <dl className="metadata-grid">
-            <div><dt>Duration</dt><dd>{capture.durationSeconds?.toFixed(2)} sec</dd></div>
-            <div><dt>Resolution</dt><dd>{capture.width} × {capture.height}</dd></div>
-            <div><dt>Frame rate</dt><dd>{capture.fps?.toFixed(2)} fps</dd></div>
-            <div><dt>Codec</dt><dd>{capture.codec}</dd></div>
-            <div><dt>Orientation</dt><dd>{capture.orientation}°</dd></div>
-            <div><dt>Output target</dt><dd>{capture.targetFrameCount} frames</dd></div>
+            <div><dt>Duration</dt><dd>{localCapture.durationSeconds?.toFixed(2)} sec</dd></div>
+            <div><dt>Resolution</dt><dd>{localCapture.width} × {localCapture.height}</dd></div>
+            <div><dt>Frame rate</dt><dd>{localCapture.fps?.toFixed(2)} fps</dd></div>
+            <div><dt>Codec</dt><dd>{localCapture.codec}</dd></div>
+            <div><dt>Orientation</dt><dd>{localCapture.orientation}°</dd></div>
+            <div><dt>Output target</dt><dd>{localCapture.targetFrameCount} frames</dd></div>
           </dl>
 
-          <CaptureProcessingPanel initialCapture={capture} />
+          <CaptureProcessingPanel initialCapture={localCapture} />
         </section>
-      )}
+      ) : null}
     </AppShell>
   );
 }

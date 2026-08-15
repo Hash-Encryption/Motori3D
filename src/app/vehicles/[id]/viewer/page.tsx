@@ -6,6 +6,10 @@ import { SpinViewer } from "@/components/spin-viewer";
 import { createClient } from "@/lib/supabase/server";
 import { getAuthContext } from "@/server/auth/auth-context";
 import {
+  getLatestCloudCaptureForVehicle,
+  listCloudCaptureFrames,
+} from "@/server/captures/cloud-capture-repository";
+import {
   getLatestCaptureForVehicle,
   listCaptureFrames,
 } from "@/server/captures/capture-repository";
@@ -82,25 +86,58 @@ export default async function ViewerPage(props: PageProps<"/vehicles/[id]/viewer
     }
   }
 
-  let capture = null;
-  let frames: Array<{ frameIndex: number; width: number; height: number }> = [];
-  try {
-    capture = getLatestCaptureForVehicle(id);
-    frames = capture?.status === "READY" ? listCaptureFrames(capture.id) : [];
-  } catch {
-    // Ignored in cloud environments without local captures
+  // 1. Check Cloud 360 Spin Captures first
+  let frameUrls: string[] = [];
+  let spinWidth = 1920;
+  let spinHeight = 1080;
+  let captureId = id;
+
+  if (authContext) {
+    try {
+      const supabase = await createClient();
+      const cloudCapture = await getLatestCloudCaptureForVehicle(supabase, id);
+      if (cloudCapture && cloudCapture.status === "READY") {
+        captureId = cloudCapture.id;
+        spinWidth = cloudCapture.width || 1920;
+        spinHeight = cloudCapture.height || 1080;
+        const frames = await listCloudCaptureFrames(supabase, cloudCapture.id);
+        frameUrls = frames.map((f) => f.public_url);
+      }
+    } catch {
+      // Ignored
+    }
   }
 
-  const ready = capture?.status === "READY" && frames.length > 0;
+  // 2. Fallback to local capture frames if no cloud frames
+  if (frameUrls.length === 0) {
+    try {
+      const localCapture = getLatestCaptureForVehicle(id);
+      if (localCapture && localCapture.status === "READY") {
+        captureId = localCapture.id;
+        const localFrames = listCaptureFrames(localCapture.id);
+        if (localFrames.length > 0) {
+          spinWidth = localFrames[0].width;
+          spinHeight = localFrames[0].height;
+          frameUrls = localFrames.map(
+            (frame) => `/api/captures/${localCapture.id}/frames/${frame.frameIndex}`,
+          );
+        }
+      }
+    } catch {
+      // Ignored
+    }
+  }
+
+  const isReady = frameUrls.length > 0;
 
   return (
     <AppShell>
       <section className="page-heading viewer-heading">
         <div>
-          <p className="eyebrow">Interactive asset</p>
+          <p className="eyebrow">Interactive 360 Spin Asset</p>
           <h1>{vehicle.name}</h1>
           <p className="page-description">
-            Swipe or drag horizontally to rotate the real captured sequence.
+            Swipe or drag horizontally to rotate the vehicle. Pinch or double-click to zoom.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -113,27 +150,25 @@ export default async function ViewerPage(props: PageProps<"/vehicles/[id]/viewer
         </div>
       </section>
 
-      {ready && capture ? (
+      {isReady ? (
         <SpinViewer
-          captureId={capture.id}
+          captureId={captureId}
           vehicleName={vehicle.name}
-          frameUrls={frames.map(
-            (frame) => `/api/captures/${capture.id}/frames/${frame.frameIndex}`,
-          )}
-          width={frames[0].width}
-          height={frames[0].height}
+          frameUrls={frameUrls}
+          width={spinWidth}
+          height={spinHeight}
         />
       ) : (
         <section className="panel">
           <div className="viewer-placeholder">
             <div>
-              <h2>No ready frame sequence</h2>
-              <p>Upload and process a walkaround video before opening the viewer.</p>
+              <h2>No 360 Spin Available</h2>
+              <p>Upload a walkaround video to generate an interactive 360 turntable.</p>
             </div>
           </div>
           <div className="form-actions">
             <Link className="button button-primary" href={`/vehicles/${vehicle.id}/processing`}>
-              Open processing
+              Open 360 Processing
             </Link>
           </div>
         </section>

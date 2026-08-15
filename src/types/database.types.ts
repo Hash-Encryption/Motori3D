@@ -166,6 +166,90 @@ export type Database = {
           },
         ];
       };
+      cloud_captures: {
+        Row: {
+          id: string;
+          business_id: string;
+          vehicle_id: string;
+          status: "READY" | "PROCESSING" | "FAILED";
+          frame_count: number;
+          target_frame_count: number;
+          width: number;
+          height: number;
+          duration_seconds: number | null;
+          fps: number | null;
+          source_filename: string | null;
+          error: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          business_id: string;
+          vehicle_id: string;
+          status?: "READY" | "PROCESSING" | "FAILED";
+          frame_count?: number;
+          target_frame_count?: number;
+          width?: number;
+          height?: number;
+          duration_seconds?: number | null;
+          fps?: number | null;
+          source_filename?: string | null;
+          error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          business_id?: string;
+          vehicle_id?: string;
+          status?: "READY" | "PROCESSING" | "FAILED";
+          frame_count?: number;
+          target_frame_count?: number;
+          width?: number;
+          height?: number;
+          duration_seconds?: number | null;
+          fps?: number | null;
+          source_filename?: string | null;
+          error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      cloud_capture_frames: {
+        Row: {
+          id: string;
+          capture_id: string;
+          frame_index: number;
+          storage_path: string;
+          public_url: string;
+          width: number;
+          height: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          capture_id: string;
+          frame_index: number;
+          storage_path: string;
+          public_url: string;
+          width?: number;
+          height?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          capture_id?: string;
+          frame_index?: number;
+          storage_path?: string;
+          public_url?: string;
+          width?: number;
+          height?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;

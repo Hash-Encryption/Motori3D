@@ -122,7 +122,43 @@ export async function listInventoryVehicles(
     throw new Error(`Failed to list inventory vehicles: ${error.message}`);
   }
 
-  return (rows || []).map((row) => enrichInventoryVehicle(mapInventoryRow(row)));
+  // Fetch cloud captures for these vehicles
+  const vehicleIds = (rows || []).map((r) => r.id);
+  const cloudCapturesMap = new Map<string, Database["public"]["Tables"]["cloud_captures"]["Row"]>();
+
+  if (vehicleIds.length > 0) {
+    try {
+      const { data: captures } = await supabase
+        .from("cloud_captures")
+        .select("*")
+        .in("vehicle_id", vehicleIds)
+        .eq("status", "READY");
+
+      if (captures) {
+        for (const c of captures) {
+          cloudCapturesMap.set(c.vehicle_id, c);
+        }
+      }
+    } catch {
+      // Ignored if table not yet populated
+    }
+  }
+
+  return (rows || []).map((row) => {
+    const mapped = mapInventoryRow(row);
+    const cloud = cloudCapturesMap.get(row.id);
+    if (cloud) {
+      return {
+        ...mapped,
+        hasCapture: true,
+        captureId: cloud.id,
+        captureStatus: cloud.status,
+        frameCount: cloud.frame_count,
+        isSpinReady: true,
+      };
+    }
+    return enrichInventoryVehicle(mapped);
+  });
 }
 
 /**
@@ -149,7 +185,33 @@ export async function getInventoryVehicle(
     return null;
   }
 
-  return enrichInventoryVehicle(mapInventoryRow(row));
+  const mapped = mapInventoryRow(row);
+
+  try {
+    const { data: cloud } = await supabase
+      .from("cloud_captures")
+      .select("*")
+      .eq("vehicle_id", vehicleId)
+      .eq("status", "READY")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (cloud) {
+      return {
+        ...mapped,
+        hasCapture: true,
+        captureId: cloud.id,
+        captureStatus: cloud.status,
+        frameCount: cloud.frame_count,
+        isSpinReady: true,
+      };
+    }
+  } catch {
+    // Ignored
+  }
+
+  return enrichInventoryVehicle(mapped);
 }
 
 /**
