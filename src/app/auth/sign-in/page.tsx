@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
+import { createClient } from "@/lib/supabase/client";
 
 export default function SignInPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -19,21 +18,24 @@ export default function SignInPage() {
     setLoading(true);
 
     try {
-      const response = await fetch("/api/auth/sign-in", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      const supabase = createClient();
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Sign in failed.");
+      if (authError) {
+        throw new Error(authError.message);
       }
 
+      if (!data.session) {
+        throw new Error("Unable to establish session. Please verify your credentials.");
+      }
+
+      // Session cookies are written to document.cookie by @supabase/ssr browser client.
       window.location.href = "/account";
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred.");
-    } finally {
       setLoading(false);
     }
   }

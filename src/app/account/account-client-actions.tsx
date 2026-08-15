@@ -1,20 +1,20 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 export function AccountClientActions() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
 
   async function handleSignOut() {
     setLoading(true);
     try {
-      await fetch("/api/auth/sign-out", { method: "POST" });
-      router.push("/auth/sign-in");
-      router.refresh();
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      window.location.href = "/auth/sign-in";
     } catch (err) {
       console.error("Sign out failed", err);
+      window.location.href = "/auth/sign-in";
     } finally {
       setLoading(false);
     }

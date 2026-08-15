@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { AppShell } from "@/components/app-shell";
+import { createClient } from "@/lib/supabase/client";
 
 export default function SignUpPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -23,32 +22,51 @@ export default function SignUpPage() {
     setLoading(true);
 
     try {
-      const response = await fetch("/api/auth/sign-up", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          password,
-          fullName,
-          dealershipName,
-        }),
+      const supabase = createClient();
+      
+      const rawSlug = dealershipName
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      const slug = rawSlug || `dealership-${Date.now().toString(36)}`;
+
+      // 1. Sign up user via browser Supabase client
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          data: {
+            full_name: fullName.trim(),
+          },
+        },
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Sign up failed.");
+      if (authError) {
+        throw new Error(authError.message);
       }
 
-      if (data.sessionCreated) {
+      if (authData.session) {
+        // 2. Provision dealership atomically via RPC with the active session
+        const { error: rpcError } = await supabase.rpc("create_dealership", {
+          dealership_name: dealershipName.trim(),
+          dealership_slug: slug,
+        });
+
+        if (rpcError) {
+          console.error("Dealership bootstrap RPC error:", rpcError);
+        }
+
+        // Navigate with active session cookies
         window.location.href = "/account";
       } else {
         setMessage(
           "Account created! Please check your email for confirmation before signing in.",
         );
+        setLoading(false);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred.");
-    } finally {
       setLoading(false);
     }
   }
