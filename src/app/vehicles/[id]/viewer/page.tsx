@@ -116,6 +116,37 @@ export default async function ViewerPage(props: PageProps<"/vehicles/[id]/viewer
         );
       }
     }
+    // Fallback: Scan Supabase Storage bucket directly if database record was not yet returned
+    if (frameUrls.length === 0) {
+      const bId = vehicle.businessId || "public";
+      const folderPath = `${bId}/${id}`;
+      const { data: captureFolders } = await supabase.storage
+        .from("vehicle-spins")
+        .list(folderPath);
+
+      if (captureFolders && captureFolders.length > 0) {
+        // Find most recent subfolder
+        const latestFolder = captureFolders[captureFolders.length - 1]?.name;
+        if (latestFolder) {
+          const { data: frameFiles } = await supabase.storage
+            .from("vehicle-spins")
+            .list(`${folderPath}/${latestFolder}`);
+
+          if (frameFiles && frameFiles.length > 0) {
+            const supabaseUrl =
+              process.env.NEXT_PUBLIC_SUPABASE_URL ||
+              "https://ilebbqeknviaqhyvpygv.supabase.co";
+            frameUrls = frameFiles
+              .filter((f) => f.name.endsWith(".webp"))
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map(
+                (f) =>
+                  `${supabaseUrl}/storage/v1/object/public/vehicle-spins/${folderPath}/${latestFolder}/${f.name}`,
+              );
+          }
+        }
+      }
+    }
   } catch (err) {
     console.warn("Cloud capture retrieval note:", err);
   }
