@@ -110,11 +110,8 @@ export function VideoUploadForm({ vehicleId, businessId }: VideoUploadFormProps)
       setProcessStage("UPLOADING");
       setStatusMessage("Uploading 360 frame asset to Global Cloud Storage...");
 
-      // Fallback businessId if not provided directly
-      const effectiveBusinessId = businessId || "default-dealership";
-
       await uploadSpinAssetToCloud({
-        businessId: effectiveBusinessId,
+        businessId: businessId || undefined,
         vehicleId,
         asset,
         filename: file.name,
