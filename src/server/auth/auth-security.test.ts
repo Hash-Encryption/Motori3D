@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { Database } from "@/types/database.types";
+import { closeDatabase } from "../db/database";
 import {
   createVehicleForBusiness,
   getVehicleForBusiness,
@@ -62,6 +63,11 @@ describe("Phase 03 — SaaS Foundation & Tenant Isolation Acceptance Suite", () 
   let businessBId: string;
 
   beforeAll(async () => {
+    // Isolate SQLite database and storage for test execution
+    process.env.SQLITE_DB_PATH = path.join("data", "test", `test-auth-${testRunId}.sqlite`);
+    process.env.STORAGE_ROOT = path.join("storage", "test", `test-auth-${testRunId}`);
+    closeDatabase();
+
     // 1. Create User A
     const { data: userACreated, error: errA } = await adminClient.auth.admin.createUser({
       email: userAEmail,
@@ -153,6 +159,23 @@ describe("Phase 03 — SaaS Foundation & Tenant Isolation Acceptance Suite", () 
     if (memberAId) await adminClient.auth.admin.deleteUser(memberAId);
     if (businessAId) await adminClient.from("businesses").delete().eq("id", businessAId);
     if (businessBId) await adminClient.from("businesses").delete().eq("id", businessBId);
+
+    // Close and remove isolated test SQLite DB and storage
+    closeDatabase();
+    const testDbFile = path.resolve(process.cwd(), "data", "test", `test-auth-${testRunId}.sqlite`);
+    try {
+      if (fs.existsSync(testDbFile)) fs.unlinkSync(testDbFile);
+      if (fs.existsSync(`${testDbFile}-wal`)) fs.unlinkSync(`${testDbFile}-wal`);
+      if (fs.existsSync(`${testDbFile}-shm`)) fs.unlinkSync(`${testDbFile}-shm`);
+    } catch {}
+    const testStorageDir = path.resolve(process.cwd(), "storage", "test", `test-auth-${testRunId}`);
+    try {
+      if (fs.existsSync(testStorageDir)) {
+        fs.rmSync(testStorageDir, { recursive: true, force: true });
+      }
+    } catch {}
+    delete process.env.SQLITE_DB_PATH;
+    delete process.env.STORAGE_ROOT;
   });
 
   describe("Test A — Authentication & Identity", () => {

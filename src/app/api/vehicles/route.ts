@@ -1,34 +1,67 @@
+import { createClient } from "@/lib/supabase/server";
 import { getAuthContext } from "@/server/auth/auth-context";
 import {
-  createVehicle,
-  createVehicleForBusiness,
-  listVehicles,
-  listVehiclesForBusiness,
-} from "@/server/vehicles/vehicle-repository";
-import { validateCreateVehicle } from "@/server/vehicles/vehicle-validation";
+  createInventoryVehicle,
+  listInventoryVehicles,
+} from "@/server/vehicles/inventory-repository";
+import type { VehicleLifecycleStatus } from "@/server/vehicles/inventory-types";
+import { validateCreateInventoryVehicle } from "@/server/vehicles/vehicle-validation";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(request: Request) {
   const authContext = await getAuthContext().catch(() => null);
 
-  if (authContext) {
+  if (!authContext) {
+    return Response.json(
+      { error: "Authentication required to access dealership inventory." },
+      { status: 401 },
+    );
+  }
+
+  const { searchParams } = new URL(request.url);
+  const query = searchParams.get("q") || undefined;
+  const rawStatus = searchParams.get("status")?.toUpperCase();
+  const status = ["DRAFT", "PUBLISHED", "SOLD"].includes(rawStatus ?? "")
+    ? (rawStatus as VehicleLifecycleStatus)
+    : undefined;
+
+  const supabase = await createClient();
+
+  try {
+    const vehicles = await listInventoryVehicles(
+      supabase,
+      authContext.business.id,
+      { query, status },
+    );
+
     return Response.json({
-      vehicles: listVehiclesForBusiness(authContext.business.id),
+      vehicles,
       business: {
         id: authContext.business.id,
         name: authContext.business.name,
       },
     });
+  } catch (error) {
+    console.error("Failed to list inventory vehicles", error);
+    return Response.json(
+      { error: "Failed to load vehicle inventory." },
+      { status: 500 },
+    );
   }
-
-  // Fallback to legacy unassigned vehicles for local test / prototype pipelines
-  return Response.json({ vehicles: listVehicles() });
 }
 
 export async function POST(request: Request) {
-  let body: unknown;
+  const authContext = await getAuthContext().catch(() => null);
 
+  if (!authContext) {
+    return Response.json(
+      { error: "Authentication required to create inventory vehicles." },
+      { status: 401 },
+    );
+  }
+
+  let body: unknown;
   try {
     body = await request.json();
   } catch {
@@ -38,7 +71,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const validation = validateCreateVehicle(body);
+  // Attempting to supply a different business_id in the body is explicitly rejected / ignored
+  // Tenant ownership is authoritative from the verified server authContext
+  const validation = validateCreateInventoryVehicle(body);
   if (!validation.ok) {
     return Response.json(
       {
@@ -49,19 +84,20 @@ export async function POST(request: Request) {
     );
   }
 
-  const authContext = await getAuthContext().catch(() => null);
+  const supabase = await createClient();
 
   try {
-    const vehicle = authContext
-      ? createVehicleForBusiness(validation.value, authContext.business.id)
-      : createVehicle(validation.value);
+    const vehicle = await createInventoryVehicle(
+      supabase,
+      validation.value,
+      authContext.business.id,
+    );
 
     return Response.json({ vehicle }, { status: 201 });
   } catch (error) {
-    console.error("Failed to create vehicle", error);
-    return Response.json(
-      { error: "The vehicle could not be saved. Try again." },
-      { status: 500 },
-    );
+    console.error("Failed to create inventory vehicle", error);
+    const message =
+      error instanceof Error ? error.message : "The vehicle could not be saved.";
+    return Response.json({ error: message }, { status: 500 });
   }
 }

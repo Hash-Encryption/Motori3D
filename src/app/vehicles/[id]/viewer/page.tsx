@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { AppShell } from "@/components/app-shell";
 import { SpinViewer } from "@/components/spin-viewer";
+import { getAuthContext } from "@/server/auth/auth-context";
 import {
   getLatestCaptureForVehicle,
   listCaptureFrames,
@@ -20,6 +21,14 @@ export default async function ViewerPage(props: PageProps<"/vehicles/[id]/viewer
   const vehicle = getVehicle(id);
   if (!vehicle) notFound();
 
+  // Tenant security boundary: If vehicle is owned by a dealership, verify access
+  if (vehicle.businessId) {
+    const authContext = await getAuthContext().catch(() => null);
+    if (!authContext || !authContext.allMemberships.some((m) => m.businessId === vehicle.businessId)) {
+      redirect("/auth/sign-in");
+    }
+  }
+
   const capture = getLatestCaptureForVehicle(id);
   const frames = capture?.status === "READY" ? listCaptureFrames(capture.id) : [];
   const ready = capture?.status === "READY" && frames.length > 0;
@@ -34,7 +43,14 @@ export default async function ViewerPage(props: PageProps<"/vehicles/[id]/viewer
             Swipe or drag horizontally to rotate the real captured sequence.
           </p>
         </div>
-        <Link className="button button-secondary" href="/">Projects</Link>
+        <div className="flex items-center gap-2">
+          <Link className="button button-secondary" href={`/vehicles/${vehicle.id}`}>
+            Vehicle Details
+          </Link>
+          <Link className="button button-secondary" href="/">
+            Inventory
+          </Link>
+        </div>
       </section>
 
       {ready && capture ? (

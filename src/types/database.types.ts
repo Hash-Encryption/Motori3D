@@ -95,6 +95,77 @@ export type Database = {
           },
         ];
       };
+      vehicles: {
+        Row: {
+          id: string;
+          business_id: string;
+          make: string;
+          model: string;
+          year: number;
+          price: number | null;
+          mileage: number | null;
+          vin: string | null;
+          stock_number: string | null;
+          trim: string | null;
+          exterior_color: string | null;
+          interior_color: string | null;
+          body_style: string | null;
+          transmission: string | null;
+          fuel_type: string | null;
+          status: "DRAFT" | "PUBLISHED" | "SOLD";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          business_id: string;
+          make: string;
+          model: string;
+          year: number;
+          price?: number | null;
+          mileage?: number | null;
+          vin?: string | null;
+          stock_number?: string | null;
+          trim?: string | null;
+          exterior_color?: string | null;
+          interior_color?: string | null;
+          body_style?: string | null;
+          transmission?: string | null;
+          fuel_type?: string | null;
+          status?: "DRAFT" | "PUBLISHED" | "SOLD";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          business_id?: string;
+          make?: string;
+          model?: string;
+          year?: number;
+          price?: number | null;
+          mileage?: number | null;
+          vin?: string | null;
+          stock_number?: string | null;
+          trim?: string | null;
+          exterior_color?: string | null;
+          interior_color?: string | null;
+          body_style?: string | null;
+          transmission?: string | null;
+          fuel_type?: string | null;
+          status?: "DRAFT" | "PUBLISHED" | "SOLD";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "vehicles_business_id_fkey";
+            columns: ["business_id"];
+            isOneToOne: false;
+            referencedRelation: "businesses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;

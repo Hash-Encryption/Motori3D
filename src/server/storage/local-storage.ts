@@ -21,12 +21,15 @@ function assertInternalId(id: string, label: string) {
 }
 
 export function getStorageRoot() {
-  return path.resolve(process.cwd(), "storage");
+  if (process.env.NODE_ENV === "test" && process.env.STORAGE_ROOT) {
+    return path.join(process.cwd(), process.env.STORAGE_ROOT);
+  }
+  return path.join(process.cwd(), "storage");
 }
 
 export function resolveInsideStorage(...segments: string[]) {
   const root = getStorageRoot();
-  const resolved = path.resolve(root, ...segments);
+  const resolved = path.join(root, ...segments);
   const relative = path.relative(root, resolved);
 
   if (relative.startsWith("..") || path.isAbsolute(relative)) {

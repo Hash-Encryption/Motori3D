@@ -1,3 +1,9 @@
+import type {
+  CreateInventoryVehicleInput,
+  UpdateInventoryVehicleInput,
+  VehicleLifecycleStatus,
+} from "./inventory-types";
+
 export type CreateVehicleInput = {
   name: string;
   make: string;
@@ -7,18 +13,48 @@ export type CreateVehicleInput = {
 };
 
 export type VehicleFieldErrors = Partial<
-  Record<"name" | "make" | "model" | "year" | "stockIdentifier", string>
+  Record<
+    | "name"
+    | "make"
+    | "model"
+    | "year"
+    | "price"
+    | "mileage"
+    | "vin"
+    | "stockNumber"
+    | "stockIdentifier"
+    | "trim"
+    | "exteriorColor"
+    | "interiorColor"
+    | "bodyStyle"
+    | "transmission"
+    | "fuelType"
+    | "status",
+    string
+  >
 >;
 
-type ValidationResult =
-  | { ok: true; value: CreateVehicleInput }
+type ValidationResult<T> =
+  | { ok: true; value: T }
   | { ok: false; errors: VehicleFieldErrors };
 
-function cleanString(value: unknown) {
+function cleanString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-export function validateCreateVehicle(input: unknown): ValidationResult {
+function cleanOptionalString(value: unknown, maxLength = 64): string | null {
+  if (value === null || value === undefined) return null;
+  const s = cleanString(value);
+  return s.length > 0 ? s.slice(0, maxLength) : null;
+}
+
+function cleanNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const num = typeof value === "number" ? value : Number(cleanString(value));
+  return Number.isFinite(num) ? num : null;
+}
+
+export function validateCreateVehicle(input: unknown): ValidationResult<CreateVehicleInput> {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     return { ok: false, errors: { name: "Enter the vehicle details." } };
   }
@@ -27,7 +63,10 @@ export function validateCreateVehicle(input: unknown): ValidationResult {
   const name = cleanString(candidate.name);
   const make = cleanString(candidate.make);
   const model = cleanString(candidate.model);
-  const stockIdentifier = cleanString(candidate.stockIdentifier);
+  const stockIdentifier = cleanOptionalString(
+    candidate.stockIdentifier ?? candidate.stock_identifier ?? candidate.stockNumber ?? candidate.stock_number,
+    64,
+  );
   const parsedYear =
     typeof candidate.year === "number"
       ? candidate.year
@@ -47,9 +86,6 @@ export function validateCreateVehicle(input: unknown): ValidationResult {
   if (!Number.isInteger(parsedYear) || parsedYear < 1886 || parsedYear > maximumYear) {
     errors.year = `Enter a year between 1886 and ${maximumYear}.`;
   }
-  if (stockIdentifier.length > 64) {
-    errors.stockIdentifier = "Use 64 characters or fewer.";
-  }
 
   if (Object.keys(errors).length > 0) {
     return { ok: false, errors };
@@ -62,7 +98,246 @@ export function validateCreateVehicle(input: unknown): ValidationResult {
       make,
       model,
       year: parsedYear,
-      stockIdentifier: stockIdentifier || null,
+      stockIdentifier,
     },
   };
+}
+
+export function validateCreateInventoryVehicle(
+  input: unknown,
+): ValidationResult<CreateInventoryVehicleInput> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { ok: false, errors: { make: "Enter the vehicle details." } };
+  }
+
+  const candidate = input as Record<string, unknown>;
+  const make = cleanString(candidate.make);
+  const model = cleanString(candidate.model);
+  const parsedYear =
+    typeof candidate.year === "number"
+      ? candidate.year
+      : Number.parseInt(cleanString(candidate.year), 10);
+  const maximumYear = new Date().getFullYear() + 1;
+  const errors: VehicleFieldErrors = {};
+
+  if (make.length < 1 || make.length > 60) {
+    errors.make = "Make must be between 1 and 60 characters.";
+  }
+  if (model.length < 1 || model.length > 60) {
+    errors.model = "Model must be between 1 and 60 characters.";
+  }
+  if (!Number.isInteger(parsedYear) || parsedYear < 1886 || parsedYear > maximumYear) {
+    errors.year = `Year must be between 1886 and ${maximumYear}.`;
+  }
+
+  // Optional price validation (must be >= 0 if supplied)
+  const price = cleanNumber(candidate.price);
+  if (candidate.price !== undefined && candidate.price !== null && candidate.price !== "") {
+    if (price === null || price < 0) {
+      errors.price = "Price must be a positive number.";
+    }
+  }
+
+  // Optional mileage validation (must be >= 0 integer if supplied)
+  const mileage = cleanNumber(candidate.mileage);
+  if (candidate.mileage !== undefined && candidate.mileage !== null && candidate.mileage !== "") {
+    if (mileage === null || mileage < 0 || !Number.isInteger(mileage)) {
+      errors.mileage = "Mileage must be a positive whole number.";
+    }
+  }
+
+  // Optional VIN validation (normalize uppercase, max 20 chars)
+  const rawVin = cleanString(candidate.vin);
+  const vin = rawVin.length > 0 ? rawVin.toUpperCase().slice(0, 20) : null;
+  if (rawVin.length > 20) {
+    errors.vin = "VIN must be 20 characters or fewer.";
+  }
+
+  // Optional stock number
+  const stockNumber = cleanOptionalString(
+    candidate.stockNumber ?? candidate.stock_number ?? candidate.stockIdentifier,
+    64,
+  );
+
+  // Optional specifications
+  const trim = cleanOptionalString(candidate.trim, 60);
+  const exteriorColor = cleanOptionalString(
+    candidate.exteriorColor ?? candidate.exterior_color,
+    60,
+  );
+  const interiorColor = cleanOptionalString(
+    candidate.interiorColor ?? candidate.interior_color,
+    60,
+  );
+  const bodyStyle = cleanOptionalString(
+    candidate.bodyStyle ?? candidate.body_style,
+    60,
+  );
+  const transmission = cleanOptionalString(candidate.transmission, 60);
+  const fuelType = cleanOptionalString(candidate.fuelType ?? candidate.fuel_type, 60);
+
+  // Status validation
+  const rawStatus = cleanString(candidate.status).toUpperCase();
+  let status: VehicleLifecycleStatus = "DRAFT";
+  if (rawStatus) {
+    if (["DRAFT", "PUBLISHED", "SOLD"].includes(rawStatus)) {
+      status = rawStatus as VehicleLifecycleStatus;
+    } else {
+      errors.status = "Status must be DRAFT, PUBLISHED, or SOLD.";
+    }
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, errors };
+  }
+
+  return {
+    ok: true,
+    value: {
+      make,
+      model,
+      year: parsedYear,
+      price: price !== null && price >= 0 ? Math.round(price) : null,
+      mileage: mileage !== null && mileage >= 0 ? Math.round(mileage) : null,
+      vin,
+      stockNumber,
+      trim,
+      exteriorColor,
+      interiorColor,
+      bodyStyle,
+      transmission,
+      fuelType,
+      status,
+    },
+  };
+}
+
+export function validateUpdateInventoryVehicle(
+  input: unknown,
+): ValidationResult<UpdateInventoryVehicleInput> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { ok: false, errors: { make: "Invalid update payload." } };
+  }
+
+  const candidate = input as Record<string, unknown>;
+  const errors: VehicleFieldErrors = {};
+  const value: UpdateInventoryVehicleInput = {};
+  const maximumYear = new Date().getFullYear() + 1;
+
+  if (candidate.make !== undefined) {
+    const make = cleanString(candidate.make);
+    if (make.length < 1 || make.length > 60) {
+      errors.make = "Make must be between 1 and 60 characters.";
+    } else {
+      value.make = make;
+    }
+  }
+
+  if (candidate.model !== undefined) {
+    const model = cleanString(candidate.model);
+    if (model.length < 1 || model.length > 60) {
+      errors.model = "Model must be between 1 and 60 characters.";
+    } else {
+      value.model = model;
+    }
+  }
+
+  if (candidate.year !== undefined) {
+    const parsedYear =
+      typeof candidate.year === "number"
+        ? candidate.year
+        : Number.parseInt(cleanString(candidate.year), 10);
+    if (!Number.isInteger(parsedYear) || parsedYear < 1886 || parsedYear > maximumYear) {
+      errors.year = `Year must be between 1886 and ${maximumYear}.`;
+    } else {
+      value.year = parsedYear;
+    }
+  }
+
+  if (candidate.price !== undefined) {
+    if (candidate.price === null || candidate.price === "") {
+      value.price = null;
+    } else {
+      const price = cleanNumber(candidate.price);
+      if (price === null || price < 0) {
+        errors.price = "Price must be a positive number.";
+      } else {
+        value.price = Math.round(price);
+      }
+    }
+  }
+
+  if (candidate.mileage !== undefined) {
+    if (candidate.mileage === null || candidate.mileage === "") {
+      value.mileage = null;
+    } else {
+      const mileage = cleanNumber(candidate.mileage);
+      if (mileage === null || mileage < 0 || !Number.isInteger(mileage)) {
+        errors.mileage = "Mileage must be a positive whole number.";
+      } else {
+        value.mileage = Math.round(mileage);
+      }
+    }
+  }
+
+  if (candidate.vin !== undefined) {
+    if (candidate.vin === null || candidate.vin === "") {
+      value.vin = null;
+    } else {
+      const rawVin = cleanString(candidate.vin);
+      if (rawVin.length > 20) {
+        errors.vin = "VIN must be 20 characters or fewer.";
+      } else {
+        value.vin = rawVin.toUpperCase();
+      }
+    }
+  }
+
+  if (candidate.stockNumber !== undefined || candidate.stock_number !== undefined) {
+    const rawStock = candidate.stockNumber ?? candidate.stock_number;
+    value.stockNumber = cleanOptionalString(rawStock, 64);
+  }
+
+  if (candidate.trim !== undefined) {
+    value.trim = cleanOptionalString(candidate.trim, 60);
+  }
+  if (candidate.exteriorColor !== undefined || candidate.exterior_color !== undefined) {
+    value.exteriorColor = cleanOptionalString(
+      candidate.exteriorColor ?? candidate.exterior_color,
+      60,
+    );
+  }
+  if (candidate.interiorColor !== undefined || candidate.interior_color !== undefined) {
+    value.interiorColor = cleanOptionalString(
+      candidate.interiorColor ?? candidate.interior_color,
+      60,
+    );
+  }
+  if (candidate.bodyStyle !== undefined || candidate.body_style !== undefined) {
+    value.bodyStyle = cleanOptionalString(
+      candidate.bodyStyle ?? candidate.body_style,
+      60,
+    );
+  }
+  if (candidate.transmission !== undefined) {
+    value.transmission = cleanOptionalString(candidate.transmission, 60);
+  }
+  if (candidate.fuelType !== undefined || candidate.fuel_type !== undefined) {
+    value.fuelType = cleanOptionalString(candidate.fuelType ?? candidate.fuel_type, 60);
+  }
+
+  if (candidate.status !== undefined) {
+    const rawStatus = cleanString(candidate.status).toUpperCase();
+    if (["DRAFT", "PUBLISHED", "SOLD"].includes(rawStatus)) {
+      value.status = rawStatus as VehicleLifecycleStatus;
+    } else {
+      errors.status = "Status must be DRAFT, PUBLISHED, or SOLD.";
+    }
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, errors };
+  }
+
+  return { ok: true, value };
 }

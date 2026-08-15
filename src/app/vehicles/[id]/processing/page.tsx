@@ -1,8 +1,9 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { AppShell } from "@/components/app-shell";
 import { CaptureProcessingPanel } from "@/components/capture-processing-panel";
 import { VideoUploadForm } from "@/components/video-upload-form";
+import { getAuthContext } from "@/server/auth/auth-context";
 import { getLatestCaptureForVehicle } from "@/server/captures/capture-repository";
 import { getVehicle } from "@/server/vehicles/vehicle-repository";
 
@@ -23,6 +24,14 @@ export default async function ProcessingPage(
   const { id } = await props.params;
   const vehicle = getVehicle(id);
   if (!vehicle) notFound();
+
+  // Tenant security boundary: If vehicle is owned by a dealership, verify access
+  if (vehicle.businessId) {
+    const authContext = await getAuthContext().catch(() => null);
+    if (!authContext || !authContext.allMemberships.some((m) => m.businessId === vehicle.businessId)) {
+      redirect("/auth/sign-in");
+    }
+  }
 
   const capture = getLatestCaptureForVehicle(id);
 

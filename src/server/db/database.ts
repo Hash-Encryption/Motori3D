@@ -6,6 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 
 const globalForDatabase = globalThis as typeof globalThis & {
   vehicle360Database?: DatabaseSync;
+  vehicle360DatabasePath?: string;
 };
 
 function runLocalMigrations(database: DatabaseSync) {
@@ -116,13 +117,18 @@ function runLocalMigrations(database: DatabaseSync) {
   }
 }
 
-function openDatabase() {
-  const dataDirectory = path.resolve(process.cwd(), "data");
-  mkdirSync(dataDirectory, { recursive: true });
+function resolveDatabasePath(): string {
+  if (process.env.NODE_ENV === "test" && process.env.SQLITE_DB_PATH) {
+    return path.join(process.cwd(), process.env.SQLITE_DB_PATH);
+  }
+  return path.join(process.cwd(), "data", "vehicle-360.sqlite");
+}
 
-  const database = new DatabaseSync(
-    path.join(dataDirectory, "vehicle-360.sqlite"),
-  );
+function openDatabase() {
+  const dbPath = resolveDatabasePath();
+  mkdirSync(path.dirname(dbPath), { recursive: true });
+
+  const database = new DatabaseSync(dbPath);
 
   database.exec("PRAGMA foreign_keys = ON;");
   database.exec("PRAGMA journal_mode = WAL;");
@@ -132,10 +138,34 @@ function openDatabase() {
   return database;
 }
 
-export function getDatabase() {
-  if (!globalForDatabase.vehicle360Database) {
+export function getDatabase(): DatabaseSync {
+  const targetPath = resolveDatabasePath();
+  if (
+    !globalForDatabase.vehicle360Database ||
+    globalForDatabase.vehicle360DatabasePath !== targetPath
+  ) {
+    if (globalForDatabase.vehicle360Database) {
+      try {
+        globalForDatabase.vehicle360Database.close();
+      } catch {
+        // ignore
+      }
+    }
     globalForDatabase.vehicle360Database = openDatabase();
+    globalForDatabase.vehicle360DatabasePath = targetPath;
   }
 
   return globalForDatabase.vehicle360Database;
+}
+
+export function closeDatabase(): void {
+  if (globalForDatabase.vehicle360Database) {
+    try {
+      globalForDatabase.vehicle360Database.close();
+    } catch {
+      // ignore
+    }
+    globalForDatabase.vehicle360Database = undefined;
+    globalForDatabase.vehicle360DatabasePath = undefined;
+  }
 }
