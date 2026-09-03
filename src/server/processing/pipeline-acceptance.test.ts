@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { closeDatabase } from "../db/database";
 
 import {
   frameFilename,
@@ -30,6 +31,17 @@ const SOURCE_VIDEO_PATH = path.resolve(
 );
 
 describe("Phase 01 Real Pipeline Acceptance", () => {
+  const testRunId = Math.random().toString(36).slice(2, 8);
+
+  beforeAll(() => {
+    process.env.SQLITE_DB_PATH = path.join("data", "test", `test-pipe-${testRunId}.sqlite`);
+    closeDatabase();
+  });
+
+  afterAll(() => {
+    closeDatabase();
+  });
+
   it("locates the real test video IMG_0522.mov", () => {
     expect(existsSync(SOURCE_VIDEO_PATH)).toBe(true);
     const stats = statSync(SOURCE_VIDEO_PATH);

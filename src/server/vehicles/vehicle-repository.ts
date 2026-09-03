@@ -150,7 +150,7 @@ export function createVehicleForBusiness(
       input.make,
       input.model,
       input.year,
-      input.stockIdentifier,
+      input.stockIdentifier ?? null,
       timestamp,
       timestamp,
     );

@@ -94,20 +94,22 @@ export default async function ViewerPage(props: PageProps<"/vehicles/[id]/viewer
 
   try {
     const supabase = await createClient();
-    const cloudCapture = await getLatestCloudCaptureForVehicle(supabase, id);
+    const targetBusinessId = vehicle.businessId || authContext?.business.id;
+    const cloudCapture = await getLatestCloudCaptureForVehicle(supabase, id, targetBusinessId ?? undefined);
     if (cloudCapture && (cloudCapture.status === "READY" || cloudCapture.status === "PROCESSING")) {
       captureId = cloudCapture.id;
       spinWidth = cloudCapture.width || 1920;
       spinHeight = cloudCapture.height || 1080;
 
-      const frames = await listCloudCaptureFrames(supabase, cloudCapture.id);
+      const frames = await listCloudCaptureFrames(supabase, cloudCapture.id, targetBusinessId ?? undefined);
       if (frames && frames.length > 0) {
         frameUrls = frames.map((f) => f.public_url);
       } else {
         // Construct canonical public storage URLs directly
-        const supabaseUrl =
-          process.env.NEXT_PUBLIC_SUPABASE_URL ||
-          "https://ilebbqeknviaqhyvpygv.supabase.co";
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        if (!supabaseUrl) {
+          throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL environment variable.");
+        }
         const bId =
           cloudCapture.business_id || vehicle.businessId || "default-dealership";
         frameUrls = Array.from({ length: cloudCapture.frame_count || 48 }).map(
@@ -133,9 +135,10 @@ export default async function ViewerPage(props: PageProps<"/vehicles/[id]/viewer
             .list(`${folderPath}/${latestFolder}`);
 
           if (frameFiles && frameFiles.length > 0) {
-            const supabaseUrl =
-              process.env.NEXT_PUBLIC_SUPABASE_URL ||
-              "https://ilebbqeknviaqhyvpygv.supabase.co";
+            const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+            if (!supabaseUrl) {
+              throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL environment variable.");
+            }
             frameUrls = frameFiles
               .filter((f) => f.name.endsWith(".webp"))
               .sort((a, b) => a.name.localeCompare(b.name))

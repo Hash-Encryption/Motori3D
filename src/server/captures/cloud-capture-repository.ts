@@ -7,11 +7,18 @@ export type CloudCaptureFrame = Database["public"]["Tables"]["cloud_capture_fram
 export async function getLatestCloudCaptureForVehicle(
   supabase: SupabaseClient<Database>,
   vehicleId: string,
+  businessId?: string,
 ): Promise<CloudCapture | null> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("cloud_captures")
     .select("*")
-    .eq("vehicle_id", vehicleId)
+    .eq("vehicle_id", vehicleId);
+
+  if (businessId) {
+    query = query.eq("business_id", businessId);
+  }
+
+  const { data, error } = await query
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -27,7 +34,21 @@ export async function getLatestCloudCaptureForVehicle(
 export async function listCloudCaptureFrames(
   supabase: SupabaseClient<Database>,
   captureId: string,
+  businessId?: string,
 ): Promise<CloudCaptureFrame[]> {
+  if (businessId) {
+    const { data: capture } = await supabase
+      .from("cloud_captures")
+      .select("id")
+      .eq("id", captureId)
+      .eq("business_id", businessId)
+      .maybeSingle();
+
+    if (!capture) {
+      return [];
+    }
+  }
+
   const { data, error } = await supabase
     .from("cloud_capture_frames")
     .select("*")

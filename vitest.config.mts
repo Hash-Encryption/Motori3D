@@ -5,6 +5,12 @@ export default defineConfig({
   test: {
     environment: "node",
     testTimeout: 180000,
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.next/**",
+      "**/.open-next/**",
+    ],
   },
   resolve: {
     alias: {

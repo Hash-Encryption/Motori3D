@@ -193,6 +193,19 @@ export async function getAuthContext(
     throw new ForbiddenError("Dealership administrator privileges are required.");
   }
 
+  // Verify platform Super Admin status
+  let isSuperAdmin = false;
+  try {
+    const { data: superAdminRow } = await (supabase as any)
+      .from("super_admins")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    isSuperAdmin = !!superAdminRow;
+  } catch {
+    isSuperAdmin = false;
+  }
+
   return {
     user,
     profile,
@@ -207,6 +220,7 @@ export async function getAuthContext(
       updatedAt: activeMembership.updatedAt,
     },
     role: activeMembership.role,
+    isSuperAdmin,
     allMemberships: validMemberships,
   };
 }
@@ -217,6 +231,16 @@ export async function requireAuthContext(
   const context = await getAuthContext(options);
   if (!context) {
     throw new UnauthorizedError("Authentication required.");
+  }
+  return context;
+}
+
+export async function requireSuperAdminContext(
+  options?: AuthContextOptions,
+): Promise<AuthContext> {
+  const context = await requireAuthContext(options);
+  if (!context.isSuperAdmin) {
+    throw new ForbiddenError("Platform Super Admin privileges are required.");
   }
   return context;
 }

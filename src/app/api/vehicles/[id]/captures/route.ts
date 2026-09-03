@@ -87,6 +87,14 @@ export async function POST(
         { status: 403 },
       );
     }
+  } else {
+    // Unassigned legacy vehicles cannot accept new uploads in production unless caller is Super Admin
+    if (!authContext?.isSuperAdmin && process.env.NODE_ENV === "production") {
+      return Response.json(
+        { error: "New captures require an active dealership vehicle. Unassigned uploads are prohibited." },
+        { status: 400 },
+      );
+    }
   }
 
   if (!request.body) {

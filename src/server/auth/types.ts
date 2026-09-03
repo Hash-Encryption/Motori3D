@@ -40,5 +40,6 @@ export type AuthContext = {
   business: BusinessRecord;
   membership: BusinessMembershipRecord;
   role: DealerRole;
+  isSuperAdmin: boolean;
   allMemberships: MembershipWithBusiness[];
 };
