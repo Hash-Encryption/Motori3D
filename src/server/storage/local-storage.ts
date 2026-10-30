@@ -22,14 +22,14 @@ function assertInternalId(id: string, label: string) {
 
 export function getStorageRoot() {
   if (process.env.NODE_ENV === "test" && process.env.STORAGE_ROOT) {
-    return path.join(process.cwd(), process.env.STORAGE_ROOT);
+    return path.join(/*turbopackIgnore: true*/ process.cwd(), process.env.STORAGE_ROOT);
   }
-  return path.join(process.cwd(), "storage");
+  return path.join(/*turbopackIgnore: true*/ process.cwd(), "storage");
 }
 
 export function resolveInsideStorage(...segments: string[]) {
   const root = getStorageRoot();
-  const resolved = path.join(root, ...segments);
+  const resolved = path.join(/*turbopackIgnore: true*/ root, ...segments);
   const relative = path.relative(root, resolved);
 
   if (relative.startsWith("..") || path.isAbsolute(relative)) {
