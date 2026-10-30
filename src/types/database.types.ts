@@ -95,10 +95,73 @@ export type Database = {
           },
         ];
       };
+      vehicle_listings: {
+        Row: {
+          id: string;
+          business_id: string;
+          title: string;
+          make: string;
+          model: string;
+          year: number;
+          trim: string | null;
+          body_style: string | null;
+          transmission: string | null;
+          fuel_type: string | null;
+          price: number | null;
+          description: string | null;
+          status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          business_id: string;
+          title: string;
+          make: string;
+          model: string;
+          year: number;
+          trim?: string | null;
+          body_style?: string | null;
+          transmission?: string | null;
+          fuel_type?: string | null;
+          price?: number | null;
+          description?: string | null;
+          status?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          business_id?: string;
+          title?: string;
+          make?: string;
+          model?: string;
+          year?: number;
+          trim?: string | null;
+          body_style?: string | null;
+          transmission?: string | null;
+          fuel_type?: string | null;
+          price?: number | null;
+          description?: string | null;
+          status?: "DRAFT" | "PUBLISHED" | "ARCHIVED";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_listings_business_id_fkey";
+            columns: ["business_id"];
+            isOneToOne: false;
+            referencedRelation: "businesses";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       vehicles: {
         Row: {
           id: string;
           business_id: string;
+          listing_id: string;
           make: string;
           model: string;
           year: number;
@@ -119,6 +182,7 @@ export type Database = {
         Insert: {
           id?: string;
           business_id: string;
+          listing_id?: string;
           make: string;
           model: string;
           year: number;
@@ -139,6 +203,7 @@ export type Database = {
         Update: {
           id?: string;
           business_id?: string;
+          listing_id?: string;
           make?: string;
           model?: string;
           year?: number;
@@ -163,6 +228,13 @@ export type Database = {
             isOneToOne: false;
             referencedRelation: "businesses";
             referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "vehicles_listing_business_fkey";
+            columns: ["listing_id", "business_id"];
+            isOneToOne: false;
+            referencedRelation: "vehicle_listings";
+            referencedColumns: ["id", "business_id"];
           },
         ];
       };
@@ -279,6 +351,28 @@ export type Database = {
           target_business_id: string;
         };
         Returns: boolean;
+      };
+      create_listing_with_unit: {
+        Args: {
+          p_listing: Json;
+          p_unit: Json;
+        };
+        Returns: {
+          listing_id: string;
+          unit_id: string;
+        };
+      };
+      reassign_vehicle_unit: {
+        Args: {
+          p_unit_id: string;
+          p_target_listing_id: string;
+          p_business_id: string;
+        };
+        Returns: {
+          success: boolean;
+          unit_id: string;
+          listing_id: string;
+        };
       };
     };
     Enums: {

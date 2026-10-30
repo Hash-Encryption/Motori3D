@@ -24,7 +24,7 @@ export function AccountClientActions() {
     <button
       onClick={handleSignOut}
       disabled={loading}
-      className="px-3 py-1.5 bg-stone-800 hover:bg-stone-700 text-stone-300 hover:text-white text-xs font-semibold rounded border border-stone-700 transition-colors disabled:opacity-50"
+      className="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 text-xs font-semibold rounded-lg border border-slate-200 shadow-sm transition-colors disabled:opacity-50"
     >
       {loading ? "Signing Out..." : "Sign Out"}
     </button>

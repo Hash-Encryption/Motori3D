@@ -190,7 +190,7 @@ describe("Local Capture & Frame Tenant Authorization Suite", () => {
         membership: { id: "m-a", role: "DEALER_ADMIN", status: "ACTIVE" },
         allMemberships: [{ id: "m-a", businessId: businessAId, role: "DEALER_ADMIN", status: "ACTIVE" }],
         isSuperAdmin: false,
-      });
+      } as any);
 
       const request = new Request("http://localhost/api/captures/" + captureBId + "/process", {
         method: "POST",
@@ -215,7 +215,7 @@ describe("Local Capture & Frame Tenant Authorization Suite", () => {
         membership: { id: "m-b", role: "DEALER_ADMIN", status: "ACTIVE" },
         allMemberships: [{ id: "m-b", businessId: businessBId, role: "DEALER_ADMIN", status: "ACTIVE" }],
         isSuperAdmin: false,
-      });
+      } as any);
 
       const request = new Request("http://localhost/api/captures/" + captureBId + "/process", {
         method: "POST",
@@ -240,7 +240,7 @@ describe("Local Capture & Frame Tenant Authorization Suite", () => {
         membership: { id: "m-sa", role: "DEALER_ADMIN", status: "ACTIVE" },
         allMemberships: [{ id: "m-sa", businessId: businessAId, role: "DEALER_ADMIN", status: "ACTIVE" }],
         isSuperAdmin: true,
-      });
+      } as any);
 
       const request = new Request("http://localhost/api/captures/" + captureBId + "/process", {
         method: "POST",

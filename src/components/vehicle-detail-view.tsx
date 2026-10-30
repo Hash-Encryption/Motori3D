@@ -20,21 +20,21 @@ const statusConfig: Record<
 > = {
   DRAFT: {
     label: "Draft",
-    bg: "bg-stone-800",
-    text: "text-stone-300",
-    border: "border-stone-700",
+    bg: "bg-slate-100",
+    text: "text-slate-700",
+    border: "border-slate-200",
   },
   PUBLISHED: {
     label: "Published",
-    bg: "bg-emerald-950/60",
-    text: "text-emerald-300",
-    border: "border-emerald-700/50",
+    bg: "bg-emerald-50",
+    text: "text-emerald-700",
+    border: "border-emerald-200",
   },
   SOLD: {
     label: "Sold",
-    bg: "bg-amber-950/60",
-    text: "text-amber-300",
-    border: "border-amber-700/50",
+    bg: "bg-amber-50",
+    text: "text-amber-700",
+    border: "border-amber-200",
   },
 };
 
@@ -179,43 +179,43 @@ export function VehicleDetailView({
         </div>
       )}
       {successMessage && (
-        <div className="p-3 bg-emerald-950/70 border border-emerald-700/60 rounded-lg text-emerald-200 text-sm">
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm">
           {successMessage}
         </div>
       )}
 
       {/* Header & Lifecycle Control */}
-      <section className="bg-stone-900 border border-stone-800 rounded-xl p-6 shadow-md">
+      <section className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-3 mb-1">
-              <span className="text-xs font-mono uppercase text-stone-400">
+              <span className="text-xs font-mono uppercase text-slate-500">
                 {dealershipName}
               </span>
-              <span className="text-stone-600">•</span>
+              <span className="text-slate-300">•</span>
               <span
                 className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border ${currentStatus.bg} ${currentStatus.text} ${currentStatus.border}`}
               >
                 {currentStatus.label}
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
               {vehicle.year} {vehicle.make} {vehicle.model}
               {vehicle.trim ? (
-                <span className="text-stone-400 font-normal ml-2">
+                <span className="text-slate-500 font-normal ml-2">
                   {vehicle.trim}
                 </span>
               ) : null}
             </h1>
-            <p className="text-xs text-stone-500 font-mono mt-1">
+            <p className="text-xs text-slate-400 font-mono mt-1">
               ID: {vehicle.id}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             {/* Status Dropdown */}
-            <div className="flex items-center gap-2 bg-stone-950 p-1.5 rounded-lg border border-stone-800">
-              <span className="text-xs text-stone-400 px-2 font-medium">
+            <div className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+              <span className="text-xs text-slate-500 px-2 font-medium">
                 Lifecycle:
               </span>
               <select
@@ -224,7 +224,7 @@ export function VehicleDetailView({
                   handleStatusChange(e.target.value as VehicleLifecycleStatus)
                 }
                 disabled={isUpdatingStatus}
-                className="text-xs bg-stone-900 border border-stone-700 text-stone-200 rounded px-2.5 py-1 font-semibold focus:outline-none focus:border-amber-500"
+                className="text-xs bg-white border border-slate-200 text-slate-900 rounded px-2.5 py-1 font-semibold focus:outline-none focus:border-red-600 shadow-2xs"
               >
                 <option value="DRAFT">Draft</option>
                 <option value="PUBLISHED">Published</option>
@@ -244,34 +244,34 @@ export function VehicleDetailView({
       </section>
 
       {/* 360 Processing & Interactive Spin Card */}
-      <section className="bg-stone-900 border border-stone-800 rounded-xl p-6 shadow-md">
+      <section className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-amber-400 font-bold text-sm">360° Interactive</span>
-              <span className="text-stone-600">•</span>
+              <span className="text-red-600 font-bold text-sm">360° Interactive</span>
+              <span className="text-slate-300">•</span>
               {vehicle.isSpinReady ? (
-                <span className="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                <span className="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                   Ready ({vehicle.frameCount} frames)
                 </span>
               ) : vehicle.hasCapture ? (
-                <span className="px-2 py-0.5 text-xs font-semibold rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                <span className="px-2 py-0.5 text-xs font-semibold rounded bg-sky-50 text-sky-700 border border-sky-200">
                   {vehicle.captureStatus ?? "Processing"}
                 </span>
               ) : (
-                <span className="px-2 py-0.5 text-xs font-semibold rounded bg-stone-800 text-stone-400 border border-stone-700">
+                <span className="px-2 py-0.5 text-xs font-semibold rounded bg-slate-100 text-slate-600 border border-slate-200">
                   Awaiting Walkaround Video
                 </span>
               )}
             </div>
-            <h2 className="text-lg font-semibold text-white">
+            <h2 className="text-lg font-semibold text-slate-900">
               {vehicle.isSpinReady
                 ? "360 Spin Sequence Active"
                 : vehicle.hasCapture
                   ? "360 Capture in Pipeline"
                   : "No 360 Capture Uploaded"}
             </h2>
-            <p className="text-sm text-stone-400 mt-1 max-w-xl">
+            <p className="text-sm text-slate-500 mt-1 max-w-xl">
               {vehicle.isSpinReady
                 ? "Interactive ordered frames are ready for full drag-and-spin inspection."
                 : vehicle.hasCapture
@@ -302,8 +302,8 @@ export function VehicleDetailView({
 
       {/* Edit Form OR Specifications Display */}
       {isEditing ? (
-        <section className="bg-stone-900 border border-stone-800 rounded-xl p-6 shadow-md">
-          <h2 className="text-xl font-bold text-white mb-4">Edit Vehicle Specifications</h2>
+        <section className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
+          <h2 className="text-xl font-bold text-slate-900 mb-4">Edit Vehicle Specifications</h2>
           <form onSubmit={handleSaveDetails} noValidate>
             <div className="form-grid">
               <div className="field">
@@ -459,72 +459,72 @@ export function VehicleDetailView({
           </form>
         </section>
       ) : (
-        <section className="bg-stone-900 border border-stone-800 rounded-xl p-6 shadow-md">
-          <h2 className="text-lg font-bold text-white mb-4 border-b border-stone-800 pb-3">
+        <section className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
+          <h2 className="text-lg font-bold text-slate-900 mb-4 border-b border-slate-100 pb-3">
             Inventory Details & Specifications
           </h2>
           <dl className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 text-sm">
-            <div className="bg-stone-950 p-3 rounded-lg border border-stone-800/80">
-              <dt className="text-xs text-stone-500 uppercase tracking-wider">Price</dt>
-              <dd className="text-base font-semibold text-white mt-1">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <dt className="text-xs text-slate-500 uppercase tracking-wider">Price</dt>
+              <dd className="text-base font-semibold text-slate-900 mt-1">
                 {vehicle.price !== null
                   ? `$${vehicle.price.toLocaleString()}`
                   : "Unpriced"}
               </dd>
             </div>
-            <div className="bg-stone-950 p-3 rounded-lg border border-stone-800/80">
-              <dt className="text-xs text-stone-500 uppercase tracking-wider">Mileage</dt>
-              <dd className="text-base font-semibold text-white mt-1">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <dt className="text-xs text-slate-500 uppercase tracking-wider">Mileage</dt>
+              <dd className="text-base font-semibold text-slate-900 mt-1">
                 {vehicle.mileage !== null
                   ? `${vehicle.mileage.toLocaleString()} mi`
                   : "Not recorded"}
               </dd>
             </div>
-            <div className="bg-stone-950 p-3 rounded-lg border border-stone-800/80">
-              <dt className="text-xs text-stone-500 uppercase tracking-wider">Stock #</dt>
-              <dd className="font-mono text-sm font-semibold text-stone-200 mt-1">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <dt className="text-xs text-slate-500 uppercase tracking-wider">Stock #</dt>
+              <dd className="font-mono text-sm font-semibold text-slate-800 mt-1">
                 {vehicle.stockNumber ?? "None"}
               </dd>
             </div>
-            <div className="bg-stone-950 p-3 rounded-lg border border-stone-800/80">
-              <dt className="text-xs text-stone-500 uppercase tracking-wider">VIN</dt>
-              <dd className="font-mono text-xs text-stone-300 mt-1 break-all">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <dt className="text-xs text-slate-500 uppercase tracking-wider">VIN</dt>
+              <dd className="font-mono text-xs text-slate-700 mt-1 break-all">
                 {vehicle.vin ?? "None"}
               </dd>
             </div>
-            <div className="bg-stone-950 p-3 rounded-lg border border-stone-800/80">
-              <dt className="text-xs text-stone-500 uppercase tracking-wider">Exterior</dt>
-              <dd className="text-sm font-medium text-stone-200 mt-1">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <dt className="text-xs text-slate-500 uppercase tracking-wider">Exterior</dt>
+              <dd className="text-sm font-medium text-slate-800 mt-1">
                 {vehicle.exteriorColor ?? "Not specified"}
               </dd>
             </div>
-            <div className="bg-stone-950 p-3 rounded-lg border border-stone-800/80">
-              <dt className="text-xs text-stone-500 uppercase tracking-wider">Interior</dt>
-              <dd className="text-sm font-medium text-stone-200 mt-1">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <dt className="text-xs text-slate-500 uppercase tracking-wider">Interior</dt>
+              <dd className="text-sm font-medium text-slate-800 mt-1">
                 {vehicle.interiorColor ?? "Not specified"}
               </dd>
             </div>
-            <div className="bg-stone-950 p-3 rounded-lg border border-stone-800/80">
-              <dt className="text-xs text-stone-500 uppercase tracking-wider">Body Style</dt>
-              <dd className="text-sm font-medium text-stone-200 mt-1">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <dt className="text-xs text-slate-500 uppercase tracking-wider">Body Style</dt>
+              <dd className="text-sm font-medium text-slate-800 mt-1">
                 {vehicle.bodyStyle ?? "Not specified"}
               </dd>
             </div>
-            <div className="bg-stone-950 p-3 rounded-lg border border-stone-800/80">
-              <dt className="text-xs text-stone-500 uppercase tracking-wider">Transmission</dt>
-              <dd className="text-sm font-medium text-stone-200 mt-1">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <dt className="text-xs text-slate-500 uppercase tracking-wider">Transmission</dt>
+              <dd className="text-sm font-medium text-slate-800 mt-1">
                 {vehicle.transmission ?? "Not specified"}
               </dd>
             </div>
-            <div className="bg-stone-950 p-3 rounded-lg border border-stone-800/80">
-              <dt className="text-xs text-stone-500 uppercase tracking-wider">Fuel Type</dt>
-              <dd className="text-sm font-medium text-stone-200 mt-1">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <dt className="text-xs text-slate-500 uppercase tracking-wider">Fuel Type</dt>
+              <dd className="text-sm font-medium text-slate-800 mt-1">
                 {vehicle.fuelType ?? "Not specified"}
               </dd>
             </div>
-            <div className="bg-stone-950 p-3 rounded-lg border border-stone-800/80">
-              <dt className="text-xs text-stone-500 uppercase tracking-wider">Created</dt>
-              <dd className="text-xs text-stone-400 mt-1">
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <dt className="text-xs text-slate-500 uppercase tracking-wider">Created</dt>
+              <dd className="text-xs text-slate-500 mt-1">
                 {new Date(vehicle.createdAt).toLocaleDateString()}
               </dd>
             </div>
@@ -533,13 +533,13 @@ export function VehicleDetailView({
       )}
 
       {/* Danger Zone: Safe Delete */}
-      <section className="bg-stone-950 border border-red-950/60 rounded-xl p-6 shadow-sm">
+      <section className="bg-red-50/40 border border-red-200 rounded-xl p-6 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h3 className="text-sm font-bold text-red-400 uppercase tracking-wider">
+            <h3 className="text-sm font-bold text-red-700 uppercase tracking-wider">
               Danger Zone
             </h3>
-            <p className="text-xs text-stone-400 mt-1 max-w-lg">
+            <p className="text-xs text-slate-600 mt-1 max-w-lg">
               {vehicle.hasCapture
                 ? "This vehicle has attached 360 capture evidence and cannot be deleted. Change status to SOLD to archive it."
                 : "Permanently remove this vehicle inventory record. Only allowed for vehicles without captures."}
@@ -548,10 +548,10 @@ export function VehicleDetailView({
           <button
             onClick={handleDelete}
             disabled={isDeleting || vehicle.hasCapture}
-            className={`text-xs font-semibold px-4 py-2 rounded-lg transition-colors ${
+            className={`text-xs font-semibold px-4 py-2 rounded-lg transition-colors cursor-pointer ${
               vehicle.hasCapture
-                ? "bg-stone-900 text-stone-600 cursor-not-allowed border border-stone-800"
-                : "bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-800"
+                ? "bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200"
+                : "bg-red-600 hover:bg-red-700 text-white border border-transparent shadow-xs"
             }`}
             type="button"
           >

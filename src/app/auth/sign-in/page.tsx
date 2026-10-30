@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { AppShell } from "@/components/app-shell";
+import { AuthShell } from "@/components/auth-shell";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignInPage() {
@@ -32,8 +32,44 @@ export default function SignInPage() {
         throw new Error("Unable to establish session. Please verify your credentials.");
       }
 
-      // Session cookies are written to document.cookie by @supabase/ssr browser client.
-      window.location.href = "/account";
+      // Check query params for intended redirect
+      const searchParams = new URLSearchParams(window.location.search);
+      const nextParam = searchParams.get("next");
+
+      // Resolve context to determine valid application destination
+      const ctxRes = await fetch("/api/auth/context").catch(() => null);
+      if (ctxRes && ctxRes.ok) {
+        const ctx = await ctxRes.json().catch(() => ({}));
+        
+        // If specific safe internal redirect requested
+        if (nextParam && nextParam.startsWith("/") && !nextParam.startsWith("//")) {
+          // If trying to access /super-admin, only allow if verified super admin
+          if (nextParam.startsWith("/super-admin")) {
+            if (ctx.isSuperAdmin) {
+              window.location.href = nextParam;
+              return;
+            }
+          } else {
+            window.location.href = nextParam;
+            return;
+          }
+        }
+
+        // Dealership user destination
+        if (ctx.business) {
+          window.location.href = "/app";
+          return;
+        }
+
+        // Platform Super Admin without dealership
+        if (ctx.isSuperAdmin) {
+          window.location.href = "/super-admin/clients";
+          return;
+        }
+      }
+
+      // Default application entry
+      window.location.href = "/app";
     } catch (err) {
       setError(err instanceof Error ? err.message : "An unexpected error occurred.");
       setLoading(false);
@@ -41,22 +77,22 @@ export default function SignInPage() {
   }
 
   return (
-    <AppShell>
-      <div className="mx-auto max-w-md p-6 bg-stone-900 border border-stone-800 rounded-xl shadow-lg mt-8 text-stone-100">
-        <h1 className="text-2xl font-bold text-white mb-2">Dealership Sign In</h1>
-        <p className="text-sm text-stone-400 mb-6">
-          Sign in to access your authorized dealership projects.
+    <AuthShell>
+      <div className="mx-auto max-w-md p-6 sm:p-8 bg-white border border-slate-200 rounded-xl shadow-xs mt-8 text-slate-900">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 mb-2">Dealership Sign In</h1>
+        <p className="text-sm text-slate-500 mb-6">
+          Access your inventory control plane and 360 processing workbench.
         </p>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-950/80 border border-red-800 text-red-200 text-sm rounded">
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg" role="alert">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-stone-300 mb-1">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
               Email Address
             </label>
             <input
@@ -64,13 +100,13 @@ export default function SignInPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 bg-stone-950 border border-stone-700 rounded text-stone-100 focus:outline-none focus:border-amber-500 text-sm"
-              placeholder="dealer@dealership.com"
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-600 text-sm shadow-2xs"
+              placeholder="alex@apexmotors.com"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-stone-300 mb-1">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
               Password
             </label>
             <input
@@ -78,7 +114,7 @@ export default function SignInPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 bg-stone-950 border border-stone-700 rounded text-stone-100 focus:outline-none focus:border-amber-500 text-sm"
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-600 text-sm shadow-2xs"
               placeholder="••••••••"
             />
           </div>
@@ -86,19 +122,19 @@ export default function SignInPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-stone-950 font-semibold rounded text-sm transition-colors disabled:opacity-50"
+            className="w-full py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg text-sm transition-colors shadow-xs cursor-pointer disabled:opacity-50"
           >
-            {loading ? "Signing In..." : "Sign In"}
+            {loading ? "Signing In..." : "Sign In to Dealership"}
           </button>
         </form>
 
-        <div className="mt-6 pt-4 border-t border-stone-800 text-center text-sm text-stone-400">
-          Need a dealership account?{" "}
-          <Link href="/auth/sign-up" className="text-amber-400 hover:underline">
-            Create Dealership
+        <div className="mt-6 pt-4 border-t border-slate-100 text-center text-sm text-slate-500">
+          Need a dealership workspace?{" "}
+          <Link href="/auth/sign-up" className="text-red-600 font-medium hover:underline">
+            Register Dealership
           </Link>
         </div>
       </div>
-    </AppShell>
+    </AuthShell>
   );
 }

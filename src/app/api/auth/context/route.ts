@@ -25,6 +25,7 @@ export async function GET() {
       profile: context.profile,
       business: context.business,
       role: context.role,
+      isSuperAdmin: context.isSuperAdmin,
       availableBusinesses: context.allMemberships.map((m) => ({
         id: m.business.id,
         name: m.business.name,

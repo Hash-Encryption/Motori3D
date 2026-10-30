@@ -18,11 +18,11 @@ export default async function AccountPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto max-w-2xl p-6 bg-stone-900 border border-stone-800 rounded-xl shadow-lg mt-6 text-stone-100">
-        <div className="flex items-center justify-between border-b border-stone-800 pb-4 mb-6">
+      <div className="mx-auto max-w-2xl p-6 bg-white border border-slate-200 rounded-xl shadow-xs mt-6 text-slate-900">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-white">Dealership Account</h1>
-            <p className="text-sm text-stone-400">
+            <h1 className="text-xl font-bold tracking-tight text-slate-900">Dealership Account</h1>
+            <p className="text-sm text-slate-500">
               SaaS Control Plane & Multi-Tenant Context
             </p>
           </div>
@@ -31,77 +31,86 @@ export default async function AccountPage() {
 
         <div className="space-y-6">
           {/* User Profile Info */}
-          <div className="bg-stone-950 p-4 rounded-lg border border-stone-800">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-stone-400 mb-3">
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">
               Authenticated Identity
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div>
-                <span className="text-stone-500 block text-xs">Email</span>
-                <span className="font-mono text-stone-200">{user.email}</span>
+                <span className="text-slate-500 block text-xs">Email</span>
+                <span className="font-mono text-slate-800 text-xs">{user.email}</span>
               </div>
               <div>
-                <span className="text-stone-500 block text-xs">Full Name</span>
-                <span className="text-stone-200">
+                <span className="text-slate-500 block text-xs">Full Name</span>
+                <span className="text-slate-800">
                   {profile?.fullName || "Not specified"}
                 </span>
               </div>
-              <div>
-                <span className="text-stone-500 block text-xs">Supabase User ID</span>
-                <span className="font-mono text-xs text-stone-400">{user.id}</span>
+              <div className="sm:col-span-2">
+                <span className="text-slate-500 block text-xs">Supabase User ID</span>
+                <span className="font-mono text-xs text-slate-500">{user.id}</span>
               </div>
             </div>
           </div>
 
           {/* Active Dealership Info */}
-          <div className="bg-stone-950 p-4 rounded-lg border border-stone-800">
+          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-stone-400">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Active Dealership Tenant
               </h2>
-              <span className="px-2 py-0.5 text-xs font-medium rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              <span className={`px-2 py-0.5 text-xs font-semibold rounded-full border ${
+                role === "DEALER_ADMIN"
+                  ? "bg-red-50 text-red-700 border-red-200"
+                  : "bg-slate-100 text-slate-700 border-slate-200"
+              }`}>
                 {role === "DEALER_ADMIN" ? "Administrator" : "Member"}
               </span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div>
-                <span className="text-stone-500 block text-xs">Dealership Name</span>
-                <span className="font-semibold text-white">{business.name}</span>
+                <span className="text-slate-500 block text-xs">Dealership Name</span>
+                <span className="font-semibold text-slate-900">{business.name}</span>
               </div>
               <div>
-                <span className="text-stone-500 block text-xs">Slug</span>
-                <span className="font-mono text-stone-300">/{business.slug}</span>
+                <span className="text-slate-500 block text-xs">Slug</span>
+                <span className="font-mono text-slate-700">/{business.slug}</span>
               </div>
               <div>
-                <span className="text-stone-500 block text-xs">Business UUID</span>
-                <span className="font-mono text-xs text-stone-400">{business.id}</span>
+                <span className="text-slate-500 block text-xs">Business UUID</span>
+                <span className="font-mono text-xs text-slate-500">{business.id}</span>
               </div>
               <div>
-                <span className="text-stone-500 block text-xs">Status</span>
-                <span className="text-emerald-400 font-medium">{business.status}</span>
+                <span className="text-slate-500 block text-xs">Status</span>
+                <span className="inline-flex items-center gap-1.5 text-emerald-700 font-medium">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  {business.status}
+                </span>
               </div>
             </div>
           </div>
 
           {/* Dealership Switcher if multi-tenant */}
           {allMemberships.length > 1 && (
-            <div className="bg-stone-950 p-4 rounded-lg border border-stone-800">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-stone-400 mb-3">
+            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">
                 Switch Dealership ({allMemberships.length} memberships)
               </h2>
               <div className="space-y-2">
                 {allMemberships.map((m) => (
                   <div
                     key={m.business.id}
-                    className={`flex items-center justify-between p-2 rounded border text-sm ${
+                    className={`flex items-center justify-between p-3 rounded-lg border text-sm transition-colors ${
                       m.business.id === business.id
-                        ? "bg-amber-950/40 border-amber-700/60 text-amber-200"
-                        : "bg-stone-900 border-stone-800 text-stone-300 hover:border-stone-700"
+                        ? "bg-red-50/70 border-red-200 text-red-900 font-medium"
+                        : "bg-white border-slate-200 text-slate-700 hover:border-slate-300"
                     }`}
                   >
                     <div>
                       <span className="font-medium">{m.business.name}</span>
-                      <span className="text-xs text-stone-500 ml-2">({m.role})</span>
+                      <span className="text-xs text-slate-500 ml-2">
+                        ({m.role === "DEALER_ADMIN" ? "Admin" : "Member"})
+                      </span>
                     </div>
                     {m.business.id !== business.id && (
                       <form
@@ -112,7 +121,7 @@ export default async function AccountPage() {
                         <input type="hidden" name="businessId" value={m.business.id} />
                         <button
                           type="submit"
-                          className="px-2.5 py-1 text-xs bg-stone-800 hover:bg-stone-700 text-stone-200 rounded border border-stone-600"
+                          className="px-2.5 py-1 text-xs font-medium bg-white hover:bg-slate-50 text-slate-700 rounded border border-slate-200 shadow-2xs cursor-pointer"
                         >
                           Select
                         </button>
@@ -126,10 +135,10 @@ export default async function AccountPage() {
 
           <div className="flex items-center justify-between pt-2">
             <Link
-              href="/"
-              className="text-sm text-stone-400 hover:text-stone-200 hover:underline"
+              href="/app"
+              className="text-sm text-slate-500 hover:text-slate-900 hover:underline"
             >
-              ← Back to Vehicles
+              ← Back to Dealership Overview
             </Link>
           </div>
         </div>

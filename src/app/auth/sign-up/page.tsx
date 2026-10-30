@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { AppShell } from "@/components/app-shell";
+import { AuthShell } from "@/components/auth-shell";
 import { createClient } from "@/lib/supabase/client";
 
 export default function SignUpPage() {
@@ -72,28 +72,28 @@ export default function SignUpPage() {
   }
 
   return (
-    <AppShell>
-      <div className="mx-auto max-w-md p-6 bg-stone-900 border border-stone-800 rounded-xl shadow-lg mt-8 text-stone-100">
-        <h1 className="text-2xl font-bold text-white mb-2">Create Dealership Account</h1>
-        <p className="text-sm text-stone-400 mb-6">
+    <AuthShell>
+      <div className="mx-auto max-w-md p-6 sm:p-8 bg-white border border-slate-200 rounded-xl shadow-xs mt-8 text-slate-900">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 mb-2">Create Dealership Account</h1>
+        <p className="text-sm text-slate-500 mb-6">
           Set up your dealership tenant with administrator privileges.
         </p>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-950/80 border border-red-800 text-red-200 text-sm rounded">
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
             {error}
           </div>
         )}
 
         {message && (
-          <div className="mb-4 p-3 bg-emerald-950/80 border border-emerald-800 text-emerald-200 text-sm rounded">
+          <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-lg">
             {message}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-stone-300 mb-1">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
               Dealership / Business Name
             </label>
             <input
@@ -101,13 +101,13 @@ export default function SignUpPage() {
               required
               value={dealershipName}
               onChange={(e) => setDealershipName(e.target.value)}
-              className="w-full px-3 py-2 bg-stone-950 border border-stone-700 rounded text-stone-100 focus:outline-none focus:border-amber-500 text-sm"
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-600 text-sm shadow-2xs"
               placeholder="e.g. Apex Luxury Motors"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-stone-300 mb-1">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
               Your Full Name
             </label>
             <input
@@ -115,13 +115,13 @@ export default function SignUpPage() {
               required
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="w-full px-3 py-2 bg-stone-950 border border-stone-700 rounded text-stone-100 focus:outline-none focus:border-amber-500 text-sm"
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-600 text-sm shadow-2xs"
               placeholder="Alex Vance"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-stone-300 mb-1">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
               Work Email Address
             </label>
             <input
@@ -129,13 +129,13 @@ export default function SignUpPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 bg-stone-950 border border-stone-700 rounded text-stone-100 focus:outline-none focus:border-amber-500 text-sm"
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-600 text-sm shadow-2xs"
               placeholder="alex@apexmotors.com"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-stone-300 mb-1">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1">
               Password (min. 8 characters)
             </label>
             <input
@@ -144,7 +144,7 @@ export default function SignUpPage() {
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 bg-stone-950 border border-stone-700 rounded text-stone-100 focus:outline-none focus:border-amber-500 text-sm"
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-600 text-sm shadow-2xs"
               placeholder="••••••••"
             />
           </div>
@@ -152,19 +152,19 @@ export default function SignUpPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-stone-950 font-semibold rounded text-sm transition-colors disabled:opacity-50"
+            className="w-full py-2.5 px-4 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg text-sm transition-colors shadow-xs cursor-pointer disabled:opacity-50"
           >
             {loading ? "Creating Account..." : "Create Dealership Account"}
           </button>
         </form>
 
-        <div className="mt-6 pt-4 border-t border-stone-800 text-center text-sm text-stone-400">
+        <div className="mt-6 pt-4 border-t border-slate-100 text-center text-sm text-slate-500">
           Already have an account?{" "}
-          <Link href="/auth/sign-in" className="text-amber-400 hover:underline">
+          <Link href="/auth/sign-in" className="text-red-600 font-medium hover:underline">
             Sign In
           </Link>
         </div>
       </div>
-    </AppShell>
+    </AuthShell>
   );
 }

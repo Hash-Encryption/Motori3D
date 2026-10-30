@@ -1,6 +1,14 @@
 import type {
   CreateInventoryVehicleInput,
+  CreateListingWithUnitInput,
+  CreatePhysicalUnitInput,
+  CreateVehicleListingInput,
+  ListingPublicationStatus,
+  PhysicalUnitStatus,
+  ReassignUnitInput,
   UpdateInventoryVehicleInput,
+  UpdatePhysicalUnitInput,
+  UpdateVehicleListingInput,
   VehicleLifecycleStatus,
 } from "./inventory-types";
 
@@ -340,4 +348,381 @@ export function validateUpdateInventoryVehicle(
   }
 
   return { ok: true, value };
+}
+
+// ==============================================================================
+// Phase 06: Vehicle Listing & Physical Unit Validations
+// ==============================================================================
+
+export function validateCreateVehicleListing(
+  input: unknown,
+): ValidationResult<CreateVehicleListingInput> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { ok: false, errors: { make: "Enter listing specifications." } };
+  }
+
+  const candidate = input as Record<string, unknown>;
+  const errors: VehicleFieldErrors = {};
+  const make = cleanString(candidate.make);
+  const model = cleanString(candidate.model);
+  const parsedYear =
+    typeof candidate.year === "number"
+      ? candidate.year
+      : Number.parseInt(cleanString(candidate.year), 10);
+  const maximumYear = new Date().getFullYear() + 1;
+
+  if (make.length < 1 || make.length > 60) {
+    errors.make = "Make must be between 1 and 60 characters.";
+  }
+  if (model.length < 1 || model.length > 60) {
+    errors.model = "Model must be between 1 and 60 characters.";
+  }
+  if (!Number.isInteger(parsedYear) || parsedYear < 1886 || parsedYear > maximumYear) {
+    errors.year = `Year must be between 1886 and ${maximumYear}.`;
+  }
+
+  const price = cleanNumber(candidate.price);
+  if (candidate.price !== undefined && candidate.price !== null && candidate.price !== "") {
+    if (price === null || price < 0) {
+      errors.price = "Price must be a positive number.";
+    }
+  }
+
+  const trim = cleanOptionalString(candidate.trim, 60);
+  const bodyStyle = cleanOptionalString(candidate.bodyStyle ?? candidate.body_style, 60);
+  const transmission = cleanOptionalString(candidate.transmission, 60);
+  const fuelType = cleanOptionalString(candidate.fuelType ?? candidate.fuel_type, 60);
+  const description = cleanOptionalString(candidate.description, 2000);
+
+  const rawStatus = cleanString(candidate.status).toUpperCase();
+  let status: ListingPublicationStatus = "DRAFT";
+  if (rawStatus) {
+    if (["DRAFT", "PUBLISHED", "ARCHIVED"].includes(rawStatus)) {
+      status = rawStatus as ListingPublicationStatus;
+    } else {
+      errors.status = "Listing status must be DRAFT, PUBLISHED, or ARCHIVED.";
+    }
+  }
+
+  const titleRaw = cleanString(candidate.title);
+  const title = titleRaw.length > 0
+    ? titleRaw.slice(0, 120)
+    : [parsedYear, make, model, trim].filter(Boolean).join(" ");
+
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, errors };
+  }
+
+  return {
+    ok: true,
+    value: {
+      title,
+      make,
+      model,
+      year: parsedYear,
+      trim,
+      bodyStyle,
+      transmission,
+      fuelType,
+      price: price !== null && price >= 0 ? Math.round(price) : null,
+      description,
+      status,
+    },
+  };
+}
+
+export function validateUpdateVehicleListing(
+  input: unknown,
+): ValidationResult<UpdateVehicleListingInput> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { ok: false, errors: { make: "Invalid update payload." } };
+  }
+
+  const candidate = input as Record<string, unknown>;
+  const errors: VehicleFieldErrors = {};
+  const value: UpdateVehicleListingInput = {};
+  const maximumYear = new Date().getFullYear() + 1;
+
+  if (candidate.title !== undefined) {
+    const title = cleanString(candidate.title);
+    if (title.length < 1 || title.length > 120) {
+      errors.name = "Title must be between 1 and 120 characters.";
+    } else {
+      value.title = title;
+    }
+  }
+
+  if (candidate.make !== undefined) {
+    const make = cleanString(candidate.make);
+    if (make.length < 1 || make.length > 60) {
+      errors.make = "Make must be between 1 and 60 characters.";
+    } else {
+      value.make = make;
+    }
+  }
+
+  if (candidate.model !== undefined) {
+    const model = cleanString(candidate.model);
+    if (model.length < 1 || model.length > 60) {
+      errors.model = "Model must be between 1 and 60 characters.";
+    } else {
+      value.model = model;
+    }
+  }
+
+  if (candidate.year !== undefined) {
+    const parsedYear =
+      typeof candidate.year === "number"
+        ? candidate.year
+        : Number.parseInt(cleanString(candidate.year), 10);
+    if (!Number.isInteger(parsedYear) || parsedYear < 1886 || parsedYear > maximumYear) {
+      errors.year = `Year must be between 1886 and ${maximumYear}.`;
+    } else {
+      value.year = parsedYear;
+    }
+  }
+
+  if (candidate.price !== undefined) {
+    const price = cleanNumber(candidate.price);
+    if (price !== null && price < 0) {
+      errors.price = "Price must be a positive number.";
+    } else {
+      value.price = price !== null ? Math.round(price) : null;
+    }
+  }
+
+  if (candidate.trim !== undefined) {
+    value.trim = cleanOptionalString(candidate.trim, 60);
+  }
+  if (candidate.bodyStyle !== undefined || candidate.body_style !== undefined) {
+    value.bodyStyle = cleanOptionalString(candidate.bodyStyle ?? candidate.body_style, 60);
+  }
+  if (candidate.transmission !== undefined) {
+    value.transmission = cleanOptionalString(candidate.transmission, 60);
+  }
+  if (candidate.fuelType !== undefined || candidate.fuel_type !== undefined) {
+    value.fuelType = cleanOptionalString(candidate.fuelType ?? candidate.fuel_type, 60);
+  }
+  if (candidate.description !== undefined) {
+    value.description = cleanOptionalString(candidate.description, 2000);
+  }
+
+  if (candidate.status !== undefined) {
+    const rawStatus = cleanString(candidate.status).toUpperCase();
+    if (["DRAFT", "PUBLISHED", "ARCHIVED"].includes(rawStatus)) {
+      value.status = rawStatus as ListingPublicationStatus;
+    } else {
+      errors.status = "Listing status must be DRAFT, PUBLISHED, or ARCHIVED.";
+    }
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, errors };
+  }
+
+  return { ok: true, value };
+}
+
+export function validateCreatePhysicalUnit(
+  input: unknown,
+): ValidationResult<CreatePhysicalUnitInput> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { ok: false, errors: { vin: "Enter unit details." } };
+  }
+
+  const candidate = input as Record<string, unknown>;
+  const errors: VehicleFieldErrors = {};
+
+  const vin = cleanOptionalString(candidate.vin, 20);
+  if (vin && !/^[A-HJ-NPR-Z0-9]{11,20}$/i.test(vin)) {
+    errors.vin = "Enter a valid VIN (11-20 alphanumeric characters, excluding I, O, Q).";
+  }
+
+  const stockNumber = cleanOptionalString(
+    candidate.stockNumber ?? candidate.stock_number ?? candidate.stockIdentifier ?? candidate.stock_identifier,
+    64,
+  );
+
+  const mileage = cleanNumber(candidate.mileage);
+  if (candidate.mileage !== undefined && candidate.mileage !== null && candidate.mileage !== "") {
+    if (mileage === null || mileage < 0) {
+      errors.mileage = "Mileage must be a positive number.";
+    }
+  }
+
+  const exteriorColor = cleanOptionalString(
+    candidate.exteriorColor ?? candidate.exterior_color,
+    60,
+  );
+  const interiorColor = cleanOptionalString(
+    candidate.interiorColor ?? candidate.interior_color,
+    60,
+  );
+
+  const rawStatus = cleanString(candidate.status).toUpperCase();
+  let status: PhysicalUnitStatus = "PUBLISHED";
+  if (rawStatus) {
+    if (["DRAFT", "PUBLISHED", "SOLD"].includes(rawStatus)) {
+      status = rawStatus as PhysicalUnitStatus;
+    } else {
+      errors.status = "Physical unit status must be DRAFT, PUBLISHED, or SOLD.";
+    }
+  }
+
+  const listingId = cleanOptionalString(candidate.listingId ?? candidate.listing_id, 36);
+
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, errors };
+  }
+
+  return {
+    ok: true,
+    value: {
+      listingId: listingId ?? undefined,
+      vin,
+      stockNumber,
+      mileage: mileage !== null && mileage >= 0 ? Math.round(mileage) : null,
+      exteriorColor,
+      interiorColor,
+      status,
+    },
+  };
+}
+
+export function validateUpdatePhysicalUnit(
+  input: unknown,
+): ValidationResult<UpdatePhysicalUnitInput> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { ok: false, errors: { vin: "Invalid unit update payload." } };
+  }
+
+  const candidate = input as Record<string, unknown>;
+  const errors: VehicleFieldErrors = {};
+  const value: UpdatePhysicalUnitInput = {};
+
+  if (candidate.vin !== undefined) {
+    const vin = cleanOptionalString(candidate.vin, 20);
+    if (vin && !/^[A-HJ-NPR-Z0-9]{11,20}$/i.test(vin)) {
+      errors.vin = "Enter a valid VIN (11-20 alphanumeric characters, excluding I, O, Q).";
+    } else {
+      value.vin = vin;
+    }
+  }
+
+  if (candidate.stockNumber !== undefined || candidate.stock_number !== undefined) {
+    value.stockNumber = cleanOptionalString(
+      candidate.stockNumber ?? candidate.stock_number,
+      64,
+    );
+  }
+
+  if (candidate.mileage !== undefined) {
+    const mileage = cleanNumber(candidate.mileage);
+    if (mileage !== null && mileage < 0) {
+      errors.mileage = "Mileage must be a positive number.";
+    } else {
+      value.mileage = mileage !== null ? Math.round(mileage) : null;
+    }
+  }
+
+  if (candidate.exteriorColor !== undefined || candidate.exterior_color !== undefined) {
+    value.exteriorColor = cleanOptionalString(
+      candidate.exteriorColor ?? candidate.exterior_color,
+      60,
+    );
+  }
+
+  if (candidate.interiorColor !== undefined || candidate.interior_color !== undefined) {
+    value.interiorColor = cleanOptionalString(
+      candidate.interiorColor ?? candidate.interior_color,
+      60,
+    );
+  }
+
+  if (candidate.status !== undefined) {
+    const rawStatus = cleanString(candidate.status).toUpperCase();
+    if (["DRAFT", "PUBLISHED", "SOLD"].includes(rawStatus)) {
+      value.status = rawStatus as PhysicalUnitStatus;
+    } else {
+      errors.status = "Physical unit status must be DRAFT, PUBLISHED, or SOLD.";
+    }
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, errors };
+  }
+
+  return { ok: true, value };
+}
+
+export function validateCreateListingWithUnit(
+  input: unknown,
+): ValidationResult<CreateListingWithUnitInput> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { ok: false, errors: { make: "Enter vehicle details." } };
+  }
+
+  const candidate = input as Record<string, unknown>;
+
+  // Support either nested { listing, unit } or flat combined object
+  const listingInput = (candidate.listing && typeof candidate.listing === "object")
+    ? candidate.listing
+    : candidate;
+
+  const unitInput = (candidate.unit && typeof candidate.unit === "object")
+    ? candidate.unit
+    : candidate;
+
+  const listingResult = validateCreateVehicleListing(listingInput);
+  const unitResult = validateCreatePhysicalUnit(unitInput);
+
+  const errors: VehicleFieldErrors = {
+    ...(!listingResult.ok ? listingResult.errors : {}),
+    ...(!unitResult.ok ? unitResult.errors : {}),
+  };
+
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, errors };
+  }
+
+  return {
+    ok: true,
+    value: {
+      listing: (listingResult as { ok: true; value: CreateVehicleListingInput }).value,
+      unit: (unitResult as { ok: true; value: CreatePhysicalUnitInput }).value,
+    },
+  };
+}
+
+export function validateReassignUnit(
+  input: unknown,
+): ValidationResult<ReassignUnitInput> {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { ok: false, errors: { name: "Invalid reassignment payload." } };
+  }
+
+  const candidate = input as Record<string, unknown>;
+  const unitId = cleanString(candidate.unitId ?? candidate.unit_id);
+  const targetListingId = cleanString(candidate.targetListingId ?? candidate.target_listing_id);
+  const errors: VehicleFieldErrors = {};
+
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!unitId || !uuidRegex.test(unitId)) {
+    errors.name = "A valid unit ID is required.";
+  }
+  if (!targetListingId || !uuidRegex.test(targetListingId)) {
+    errors.model = "A valid target listing ID is required.";
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return { ok: false, errors };
+  }
+
+  return {
+    ok: true,
+    value: {
+      unitId,
+      targetListingId,
+    },
+  };
 }

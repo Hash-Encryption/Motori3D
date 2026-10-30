@@ -51,7 +51,20 @@ export async function GET(
           isPublished = true;
         }
       } catch {
-        isPublished = false;
+        try {
+          const { createAdminClient } = await import("@/lib/supabase/admin");
+          const admin = createAdminClient();
+          const { data: inv } = await admin
+            .from("vehicles")
+            .select("status")
+            .eq("id", vehicle.id)
+            .maybeSingle();
+          if (inv?.status === "PUBLISHED") {
+            isPublished = true;
+          }
+        } catch {
+          isPublished = false;
+        }
       }
 
       if (!isPublished) {
